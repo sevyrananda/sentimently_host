@@ -1,0 +1,194 @@
+{% extends "layouts.html" %}
+
+{% block content %}
+<div class="container">
+    <!-- Alert message -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+    <h2 class="mt-2 mb-3">Dataset</h2>
+    <form action="" method="POST" enctype="multipart/form-data">
+        <div class="col-md-12">
+            <label for="dataset" class="form-label">Upload Dataset</label>
+            <input type="file" class="form-control" id="file" name="file">
+        </div>
+        <div class="col-12 mt-3">
+            <button type="submit" class="btn btn-primary">Simpan Dataset</button>
+        </div>
+    </form>
+
+    <div class="d-flex justify-content-between align-items-center">
+        <h2 class="mt-2 mb-3"></h2>
+        <div>
+            <button type="button" class="btn btn-primary mt-5" data-bs-toggle="modal"
+                data-bs-target="#addDatasetModal">Add Dataset</button>
+            <button type="button" class="btn btn-secondary mt-5" onclick="trainModel()">Train Model</button>
+        </div>
+    </div>
+
+    <!-- Modal Create -->
+    <div class="modal fade" id="addDatasetModal" tabindex="-1" aria-labelledby="addDatasetModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addDatasetModalLabel">Form Tambah Dataset</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="/add_dataset">
+                        <div class="col-md-12">
+                            <label for="full_text" class="form-label">Tweet</label>
+                            <input type="text" class="form-control" id="full_text" name="full_text" required>
+                        </div>
+                        <div class="col-md-12">
+                            <label for="sentiment" class="form-label">Label</label>
+                            <select class="form-control" id="sentiment" name="sentiment" required>
+                                <option value="positif">Positif</option>
+                                <option value="negatif">Negatif</option>
+                                <option value="netral">Netral</option>
+                            </select>
+                        </div>
+                        <div class="col-12 mt-3">
+                            <button type="submit" class="btn btn-primary">Add Dataset</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Edit -->
+    <div class="modal fade" id="editDatasetModal" tabindex="-1" aria-labelledby="editDatasetModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editDatasetModalLabel">Form Edit Dataset</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" id="editDatasetForm">
+                        <input type="hidden" id="editDatasetId" name="dataset_id">
+                        <div class="col-md-12">
+                            <label for="editFullText" class="form-label">Tweet</label>
+                            <input type="text" class="form-control" id="editFullText" name="full_text" required>
+                        </div>
+                        <div class="col-md-12">
+                            <label for="editSentiment" class="form-label">Label</label>
+                            <select class="form-control" id="editSentiment" name="sentiment" required>
+                                <option value="positif">Positif</option>
+                                <option value="negatif">Negatif</option>
+                                <option value="netral">Netral</option>
+                            </select>
+                        </div>
+                        <div class="col-12 mt-3">
+                            <button type="submit" class="btn btn-primary">Update Dataset</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bagian untuk menampilkan hasil pelatihan model -->
+    <div id="loading" style="display: none;" class="text-center">
+        <p>Loading...</p>
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+    <div>
+
+        <div class="table-responsive">
+            <table id="datasetTable" class="table table-striped table-bordered table-hover">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Tweet</th>
+                        <th>Label</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in dataset %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ data.full_text }}</td>
+                        <td>{{ data.sentiment }}</td>
+                        <td class="text-center">
+                            <a href="#" class="btn btn-primary btn-sm"
+                                onclick="openEditModal('{{ data.id }}', '{{ data.full_text|safe }}', '{{ data.sentiment|safe }}')"><i
+                                    class="bi bi-pencil-fill"></i></a>
+                            <a href="#" class="btn btn-danger btn-sm" onclick="return confirmDelete('{{ data.id }}')"><i
+                                    class="bi bi-trash-fill"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- JavaScript libraries -->
+    <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/2.0.2/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.0.2/js/dataTables.bootstrap5.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+
+    <script>
+        new DataTable('#datasetTable');
+
+        function trainModel() {
+            document.getElementById('loading').style.display = 'block';
+
+            fetch('/train', {
+                method: 'POST'
+            }).then(response => {
+                if (response.ok) {
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }).catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function openEditModal(datasetId, full_text, sentiment) {
+            $('#editDatasetId').val(datasetId);
+            $('#editFullText').val(full_text);
+            $('#editSentiment').val(sentiment);
+            $('#editDatasetForm').attr('action', '/edit_dataset/' + datasetId);
+            $('#editDatasetModal').modal('show');
+        }
+
+        function confirmDelete(datasetId) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'You will not be able to recover this dataset!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, delete it',
+                cancelButtonText: 'No, keep it',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Buat form dinamis untuk penghapusan
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/delete_dataset/' + datasetId;
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        }
+    </script>
+
+    {% endblock %}

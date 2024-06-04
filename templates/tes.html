@@ -1,0 +1,132 @@
+<div align="center">
+    <table border="1">
+        <caption>
+            <h1>Training Results</h1>
+        </caption>
+        <tr>
+            <th>Model</th>
+            <th>Accuracy</th>
+            <th>Processing Time</th>
+        </tr>
+        {% for result in training_results %}
+        <tr>
+            <td>{{ result["Model"] }}</td>
+            <td>{{ result["Accuracy"] }}%</td>
+            <td>{{ result["ProcessingTime"]|round(2) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+<button type="button" class="btn btn-secondary mt-5 text-center" onclick="tesModel()">Train Model</button>
+<!-- Bagian untuk menampilkan hasil pelatihan model -->
+<div id="loading" style="display: none;" class="text-center">
+    <p>Loading...</p>
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+<div id="trainingResults" style="display: none;">
+    {% if training_results %}
+    <div class="alert alert-success" role="alert">
+        <h3>Training Results</h3>
+        {% for result in training_results %}
+        <div class="card mt-3 shadow">
+            <h2>Hasil Pelatihan Model - {{ model_name }}</h2>
+            <table class="table">
+                <h1>Result Train</h1>
+                <tr>
+                    <th>Model</th>
+                    <th>Accuracy</th>
+                    <th>Processing Time</th>
+                </tr>
+                {% for result in training_results %}
+                <tr>
+                    <td>{{ result["Model"] }}</td>
+                    <td>{{ result["Accuracy"] }}%</td>
+                    <td>{{ result["ProcessingTime"]|round(2) }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+
+<h2 class="mt-5 mb-3">Hasil Pelatihan Model</h2>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Best Model</th>
+                        <th>Accuracy Naive Bayes</th>
+                        <th>Processing Time (Naive Bayes)</th>
+                        <th>Accuracy LSTM</th>
+                        <th>Processing Time (LSTM)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in hasil_train %}
+                    <tr>
+                        <td>{{ data.best_model }}</td>
+                        <td>{{ data.acc_nb }}</td>
+                        <td>{{ data.processtime_nb }}</td>
+                        <td>{{ data.acc_lstm }}</td>
+                        <td>{{ data.processtime_lstm }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="table-responsive">
+            <table id="datasetTable" class="table table-striped table-bordered table-hover">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Tweet</th>
+                        <th>Label</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in dataset %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ data.full_text }}</td>
+                        <td>{{ data.sentiment }}</td>
+                        <td class="text-center">
+                            <a href="#" class="btn btn-primary btn-sm"
+                                onclick="openEditModal('{{ data.id }}', '{{ data.full_text|safe }}', '{{ data.sentiment|safe }}')"><i
+                                    class="bi bi-pencil-fill"></i></a>
+                            <a href="#" class="btn btn-danger btn-sm" onclick="return confirmDelete('{{ data.id }}')"><i
+                                    class="bi bi-trash-fill"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+<script>
+    function tesModel() {
+        // Menampilkan loading spinner
+        document.getElementById('loading').style.display = 'block';
+
+        fetch('/train', {
+            method: 'POST'
+        }).then(response => {
+            if (response.ok) {
+                // Menyembunyikan loading spinner
+                document.getElementById('loading').style.display = 'none';
+
+                // Menampilkan hasil pelatihan
+                document.getElementById('trainingResults').style.display = 'block';
+            }
+        }).catch(error => {
+            console.error('Error:', error);
+        });
+    }
+</script>

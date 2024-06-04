@@ -1,0 +1,64 @@
+{% extends "layouts.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Dashboard</h2>
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="mt-5">
+                <!-- Card kosong untuk visualisasi data -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="mt-1">Data Visualization</h2>
+                    </div>
+                    <div class="card-body">
+                        <!-- Konten visualisasi data -->
+                        <img src="/static/wordcloud.png" alt="Data Visualization" class="img-fluid">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="mt-5">
+                <!-- Card kosong untuk visualisasi data -->
+                <div class="card">
+                    <div class="card-header bg-dark">
+                        <h2 class="mt-1 text-white">Hasil Algoritma Terbaik</h2>
+                    </div>
+                    <div class="card-body">
+                        {% if hasil_train %}
+                            <!-- Tampilkan tabel jika hasil_train memiliki data -->
+                            <div class="table-responsive"> 
+                                <table class="table table-striped table-bordered table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Best Model</th>
+                                            <th>Accuracy Naive Bayes</th>
+                                            <th>Processing Time (Naive Bayes)</th>
+                                            <th>Accuracy LSTM</th>
+                                            <th>Processing Time (LSTM)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>{{ hasil_train.best_model }}</td>
+                                            <td>{{ hasil_train.acc_nb }}</td>
+                                            <td>{{ hasil_train.processtime_nb }}</td>
+                                            <td>{{ hasil_train.acc_lstm }}</td>
+                                            <td>{{ hasil_train.processtime_lstm }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <!-- Tampilkan pesan jika hasil_train kosong -->
+                            <p>Tidak ada data yang tersedia.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

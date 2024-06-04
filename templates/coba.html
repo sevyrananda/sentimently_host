@@ -1,0 +1,25 @@
+<h2 class="mt-5 mb-3">Hasil Train Model</h2>
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Best Model</th>
+                <th>Accuracy Naive Bayes</th>
+                <th>Processing Time (Naive Bayes)</th>
+                <th>Accuracy LSTM</th>
+                <th>Processing Time (LSTM)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for data in hasil_train %}
+            <tr>
+                <td>{{ data.best_model }}</td>
+                <td>{{ data.acc_nb }}</td>
+                <td>{{ data.processtime_nb }}</td>
+                <td>{{ data.acc_lstm }}</td>
+                <td>{{ data.processtime_lstm }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

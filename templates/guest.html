@@ -1,0 +1,261 @@
+{% extends "layouts2.html" %}
+
+{% block content %}
+<!-- Hero section -->
+<section class="hero bg-dark text-light py-5 rounded">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6 offset-lg-1 text-center">
+                <h1 class="text-white">Welcome to Sentiment.ly!</h1>
+                <p>Platform Analisis Sentimen Twitter Mengenai Boikot Produk</p>
+            </div>
+            <div class="col-lg-5">
+                <div class="text-center">
+                    <img src="/static/hero.png" class="img-fluid rounded" width="60%">
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<div class="container mt-5">
+    <h2 class="text-center">Sentimen Produk Hot</h2>
+    <div class="row">
+        <div class="col-4">
+            <div class="card mt-3">
+                <div class="card-header bg-danger">
+                    <h2 class="mt-1 text-white">Negatif</h2>
+                </div>
+                <!-- <div class="mt-3 text-center">
+                    <img src="/static/p3.png" alt="" width="50%">
+                </div>
+                <div class="col">
+                    <h4 class="text-center">Score Sentimen</h4>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Positif</th>
+                                    <th>Negatif</th>
+                                    <th>Netral</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{{ positif_score }}</td>
+                                    <td>{{ negatif_score }}</td>
+                                    <td>{{ netral_score }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div> -->
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col">
+                            <!-- Tabel daftar pengguna -->
+                            <h3>Data Tweet</h3>
+                            <div class="table-responsive">
+                                <table id="negatifTable" class="table table-striped table-bordered table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Tweet</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for user in users %}
+                                        <tr>
+                                            <td>{{ user[1] }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card mt-3">
+                <div class="card-header bg-success">
+                    <h2 class="mt-1 text-white">Positif</h2>
+                </div>
+                <!-- <div class="mt-3 text-center">
+                    <img src="/static/p2.png" alt="" width="50%">
+                </div> -->
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col">
+                            <!-- Tabel daftar pengguna -->
+                            <h3>Data Tweet</h3>
+                            <div class="table-responsive">
+                                <table id="positifTable" class="table table-striped table-bordered table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Tweet</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for user in users %}
+                                        <tr>
+                                            <td>{{ user[1] }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card mt-3">
+                <div class="card-header bg-warning">
+                    <h2 class="mt-1 text-white">Netral</h2>
+                </div>
+                <!-- <div class="mt-3 text-center">
+                    <img src="/static/p1.png" alt="" width="50%">
+                </div> -->
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col">
+                            <!-- Tabel daftar pengguna -->
+                            <h3>Data Tweet</h3>
+                            <div class="table-responsive">
+                                <table id="netralTable" class="table table-striped table-bordered table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Tweet</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for user in users %}
+                                        <tr>
+                                            <td>{{ user[1] }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Card pencarian dan analisis sentimen -->
+    <div class="card mt-3 shadow">
+        <div class="card-body">
+            <div class="row">
+                <h2 class="text-center mb-4">Check it out!</h2>
+                <p class="text-center">Lakukan cek analisis sentimen dengan hasil real-time</p>
+                <div class="col-md-8 offset-md-2">
+                    <form id="sentiment-form" action="{{ url_for('analyze') }}" method="POST"
+                        enctype="multipart/form-data" class="d-flex justify-content-center">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="cek" name="text"
+                                placeholder="Masukkan kalimat atau kata">
+                            <button type="submit" class="btn btn-success ml-2" id="cekButton">Cek</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-md-8 offset-md-2 mt-3">
+                    <h5>Catatan :</h5>
+                    <p class="mt-3">
+                        <b class="text-success">1. Hasil Positif (hijau)</b> = mendukung boikot,
+                    </p>
+                    <p class="mt-3">
+                        <b class="text-danger">2. Hasil Negatif (merah)</b> = menolak boikot,
+                    </p>
+                    <p class="mt-3">
+                        <b class="text-warning">3. Hasil Netral (kuning)</b> = netral,
+                    </p>
+                    <p>4. Ketika memasukkan keyword, harus ada kata boikot </p>
+                    <p><b>Contoh keyword :</b> mendukung boikot, tetap boikot starbucks dll</p>
+                </div>
+            </div>
+            {% if sentiment %}
+            <div class="alert {% if sentiment == 'Positive' %}alert-success{% elif sentiment == 'Negative' %}alert-danger{% elif sentiment == 'Neutral' %}alert-warning{% endif %} mt-4 text-center"
+                role="alert">
+                <h4
+                    class="bg {% if sentiment == 'Positive' %}bg-success{% elif sentiment == 'Negative' %}bg-danger{% elif sentiment == 'Neutral' %}bg-warning{% endif %}">
+                    Predicted Sentiment: {{ sentiment }}</h4>
+                <p><strong>Input Text:</strong> {{ input_text }}</p>
+                <p><strong>Clean Text:</strong>{{ clean_text }}</p>
+                {% if scores %}
+                <p><strong>Sentiment Scores:</strong></p>
+                <ul>
+                    <li>Negatif: {{ scores['Negative'] }}</li>
+                    <li>Netral: {{ scores['Neutral'] }}</li>
+                    <li>Positif: {{ scores['Positive'] }}</li>
+                </ul>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+</div>
+
+
+<!-- JavaScript libraries -->
+<script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/2.0.2/js/dataTables.js"></script>
+<script src="https://cdn.datatables.net/2.0.2/js/dataTables.bootstrap5.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    new DataTable('#scrapeTable');
+    new DataTable('#hasilcekTable');
+    new DataTable('#positifTable');
+    new DataTable('#negatifTable');
+    new DataTable('#netralTable');
+
+    document.getElementById('cekButton').addEventListener('click', function () {
+        var sentimentTableWrapper = document.getElementById('sentimentTableWrapper');
+        sentimentTableWrapper.style.display = 'block';
+    });
+
+
+    function analyzeText() {
+        var text = document.getElementById('text-input').value;
+
+        fetch('/analyze', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                text: text
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('text-display').innerText = 'Text: ' + data.text;
+
+                // Update the table with sentiment analysis results
+                document.getElementById('tweet-cell').innerText = data.text;
+                document.getElementById('nb-sentiment-cell').innerText = data.sentiment_nb;
+                if (data.prob_nb) {
+                    document.getElementById('nb-score-cell').innerText = JSON.stringify(data.prob_nb);
+                }
+                document.getElementById('lstm-sentiment-cell').innerText = data.sentiment_lstm;
+                if (data.prob_lstm) {
+                    document.getElementById('lstm-score-cell').innerText = JSON.stringify(data.prob_lstm);
+                }
+
+                document.getElementById('sentimentTableWrapper').style.display = 'block';
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+    }
+
+</script>
+
+{% endblock %}
