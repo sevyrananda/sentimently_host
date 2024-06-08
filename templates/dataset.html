@@ -122,7 +122,11 @@
                     <tr>
                         <td>{{ loop.index }}</td>
                         <td>{{ data.full_text }}</td>
-                        <td>{{ data.sentiment }}</td>
+                        <td>
+                            <span class="badge {% if data.sentiment == 'positif' %}bg-success{% elif data.sentiment == 'netral' %}bg-warning{% else %}bg-danger{% endif %} text-white">
+                                {{ data.sentiment }}
+                            </span>
+                        </td>
                         <td class="text-center">
                             <a href="#" class="btn btn-primary btn-sm"
                                 onclick="openEditModal('{{ data.id }}', '{{ data.full_text|safe }}', '{{ data.sentiment|safe }}')"><i
@@ -150,45 +154,34 @@
 
         function trainModel() {
             document.getElementById('loading').style.display = 'block';
-
+    
             fetch('/train', {
                 method: 'POST'
-            }).then(response => {
-                if (response.ok) {
-                    document.getElementById('loading').style.display = 'none';
-                }
+            }).then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+    
+                let alertClass = 'alert-' + data.status;
+                let alertMessage = `
+                    <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                        ${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+                document.querySelector('.container').insertAdjacentHTML('afterbegin', alertMessage);
             }).catch(error => {
                 console.error('Error:', error);
-            });
-        }
-
-        function openEditModal(datasetId, full_text, sentiment) {
-            $('#editDatasetId').val(datasetId);
-            $('#editFullText').val(full_text);
-            $('#editSentiment').val(sentiment);
-            $('#editDatasetForm').attr('action', '/edit_dataset/' + datasetId);
-            $('#editDatasetModal').modal('show');
-        }
-
-        function confirmDelete(datasetId) {
-            Swal.fire({
-                title: 'Are you sure?',
-                text: 'You will not be able to recover this dataset!',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, delete it',
-                cancelButtonText: 'No, keep it',
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // Buat form dinamis untuk penghapusan
-                    const form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = '/delete_dataset/' + datasetId;
-                    document.body.appendChild(form);
-                    form.submit();
-                }
+                document.getElementById('loading').style.display = 'none';
+                let alertMessage = `
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        Error during training process.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+                document.querySelector('.container').insertAdjacentHTML('afterbegin', alertMessage);
             });
         }
     </script>
+    
 
     {% endblock %}

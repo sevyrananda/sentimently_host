@@ -92,11 +92,48 @@ def login():
 # GUEST
 @app.route('/guest')
 def guest():
+    negative_products = []
+    positive_products = []
+    neutral_products = []
+
     cur = mysql.cursor(dictionary=True)
+    # Query SQL untuk mengambil data dari tabel dataset
+    query = "SELECT full_text, sentiment FROM dataset"
+    cur.execute(query)
+
+    # Memproses hasil query
+    for row in cur.fetchall():
+        full_text = row['full_text']
+        sentiment = row['sentiment']
+
+        # Mengelompokkan berdasarkan sentimen
+        if sentiment.lower() == "negatif":
+            negative_products.append({"tweet": full_text, "sentiment": "Negatif"})
+        elif sentiment.lower() == "positif":
+            positive_products.append({"tweet": full_text, "sentiment": "Positif"})
+        else:
+            neutral_products.append({"tweet": full_text, "sentiment": "Netral"})
+    
     cur.execute("SELECT * FROM users")
     users = cur.fetchall()
     cur.close()
-    return render_template('guest.html', users=users)
+    
+    # Menentukan sentimen mayoritas berdasarkan jumlah produk pada setiap kategori
+    majority_sentiment = ""
+    if len(positive_products) > len(negative_products) and len(positive_products) > len(neutral_products):
+        majority_sentiment = "Positif"
+    elif len(negative_products) > len(positive_products) and len(negative_products) > len(neutral_products):
+        majority_sentiment = "Negatif"
+    else:
+        majority_sentiment = "Netral"
+
+
+    return render_template('guest.html', 
+                           majority_sentiment=majority_sentiment, 
+                           negative_products=negative_products,
+                           positive_products=positive_products,
+                           neutral_products=neutral_products,
+                           users=users)
 
 # ADMIN
 @app.route('/dashboard')
@@ -210,122 +247,19 @@ def parseCSV(filePath):
         mysql.commit()
 
 @app.route('/train', methods=['POST'])
-# Fungsi untuk mendapatkan data dari tabel hasil_train
 def train():
-        # Ambil dataset dari tabel dataset
-        cur = mysql.cursor(dictionary=True)
-        cur.execute("SELECT * FROM dataset")
-        dataset = cur.fetchall()
-        cur.close()
+    # Buat folder 'model' jika belum ada
+    model_folder = 'model'
+    if not os.path.exists(model_folder):
+        os.makedirs(model_folder)
 
-        # Ubah menjadi DataFrame
-        df = pd.DataFrame(dataset)
-
-        # Menghapus baris dengan nilai NaN dalam kolom 'sentiment'
-        df.dropna(subset=['sentiment'], inplace=True)
-
-        # Preprocess data
-        df['clean_tweet'] = df['full_text'].apply(preprocess)
-        X_train, X_test, y_train, y_test = train_test_split(df['clean_tweet'], df['sentiment'], test_size=0.2, random_state=42)
-
-        # Konversi label menjadi numerik
-        sentiment_mapping = {'negatif': 0, 'netral': 1, 'positif': 2}
-        y_train = y_train.map(sentiment_mapping)
-        y_test = y_test.map(sentiment_mapping)
-
-        # Vectorisasi untuk Naive Bayes
-        vectorizer_nb = TfidfVectorizer()
-        X_train_tfidf_nb = vectorizer_nb.fit_transform(X_train)
-        X_test_tfidf_nb = vectorizer_nb.transform(X_test)
-
-        # Latih dan Evaluasi Naive Bayes
-        start_time_nb = time.time()
-        naive_bayes = MultinomialNB()
-        naive_bayes.fit(X_train_tfidf_nb, y_train)
-        end_time_nb = time.time()
-        nb_pred = naive_bayes.predict(X_test_tfidf_nb)
-        nb_accuracy = accuracy_score(y_test, nb_pred)
-        processing_time_nb = end_time_nb - start_time_nb
-
-        # Vectorisasi dan Padding untuk LSTM
-        tokenizer = Tokenizer(num_words=5000, split=' ')
-        tokenizer.fit_on_texts(df['clean_tweet'].values)
-        X_train_seq = tokenizer.texts_to_sequences(X_train)
-        X_test_seq = tokenizer.texts_to_sequences(X_test)
-        X_train_pad = pad_sequences(X_train_seq)
-        X_test_pad = pad_sequences(X_test_seq, maxlen=X_train_pad.shape[1])
-
-        # Bangun model LSTM
-        model = Sequential()
-        model.add(Embedding(5000, 128, input_length=X_train_pad.shape[1]))
-        model.add(SpatialDropout1D(0.2))
-        model.add(Bidirectional(LSTM(100, dropout=0.2, recurrent_dropout=0.2)))
-        model.add(Dense(3, activation='softmax'))
-        model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-
-        # Latih model LSTM
-        start_time_lstm = time.time()
-        model.fit(X_train_pad, y_train, epochs=10, batch_size=64, validation_data=(X_test_pad, y_test))
-        end_time_lstm = time.time()
-
-        # Evaluasi model LSTM
-        lstm_pred = model.predict(X_test_pad, batch_size=64)
-        lstm_pred_classes = lstm_pred.argmax(axis=1)
-        lstm_accuracy = accuracy_score(y_test, lstm_pred_classes)
-        processing_time_lstm = end_time_lstm - start_time_lstm
-
-        # Simpan model Naive Bayes ke dalam folder model
-        joblib.dump(naive_bayes, 'model/naive_bayes_model.pkl')
-
-        # Simpan vectorizer Naive Bayes ke dalam folder model
-        joblib.dump(vectorizer_nb, 'model/tfidf_vectorizer.pkl')
-
-        # Simpan model LSTM ke dalam folder model
-        model_save_path = 'model/lstm_model.h5'
-        model.save(model_save_path)
-
-        # Simpan tokenizer LSTM ke dalam folder model
-        tokenizer_save_path = 'model/tokenizer.pkl'
-        with open(tokenizer_save_path, 'wb') as f:
-            pickle.dump(tokenizer, f)
-
-        # Tentukan model terbaik
-        if nb_accuracy > lstm_accuracy:
-            best_model = 'Naive Bayes'
-        else:
-            best_model = 'LSTM'
-
-        # Simpan hasil pelatihan ke dalam tabel hasil_train
-        cur = mysql.cursor()
-        cur.execute("INSERT INTO hasil_train (best_model, acc_nb, processtime_nb, acc_lstm, processtime_lstm) VALUES (%s, %s, %s, %s, %s)",
-                    (best_model, nb_accuracy, processing_time_nb, lstm_accuracy, processing_time_lstm))
-        mysql.commit()
-
-        # Simpan hasil preprocessing ke dalam tabel hasil_preprocessing
-        cur = mysql.cursor()
-        for index, row in df.iterrows():
-            cur.execute("INSERT INTO hasil_preprocessing (dataset_id, clean_text) VALUES (%s, %s)",
-                        (row['id'], row['clean_tweet']))
-            mysql.commit()
-        cur.close()
-
-        # Flash message untuk memberi tahu pengguna bahwa proses pelatihan berhasil
-        flash('Data Hasil Train Berhasil Ditambahkan ke Database', 'success')
-
-        # Redirect ke halaman dashboard setelah pelatihan selesai
-        return redirect('/dashboard')
-   
-    
-
-@app.route('/tes')
-def tes():
-    # Fetch the dataset
+    # Ambil dataset dari tabel dataset
     cur = mysql.cursor(dictionary=True)
     cur.execute("SELECT * FROM dataset")
     dataset = cur.fetchall()
     cur.close()
 
-    # Convert to DataFrame
+    # Ubah menjadi DataFrame
     df = pd.DataFrame(dataset)
 
     # Menghapus baris dengan nilai NaN dalam kolom 'sentiment'
@@ -335,25 +269,26 @@ def tes():
     df['clean_tweet'] = df['full_text'].apply(preprocess)
     X_train, X_test, y_train, y_test = train_test_split(df['clean_tweet'], df['sentiment'], test_size=0.2, random_state=42)
 
-    # Convert labels to numeric
+    # Konversi label menjadi numerik
     sentiment_mapping = {'negatif': 0, 'netral': 1, 'positif': 2}
     y_train = y_train.map(sentiment_mapping)
     y_test = y_test.map(sentiment_mapping)
 
-    # Vectorization for Naive Bayes
+    # Vectorisasi untuk Naive Bayes
     vectorizer_nb = TfidfVectorizer()
     X_train_tfidf_nb = vectorizer_nb.fit_transform(X_train)
     X_test_tfidf_nb = vectorizer_nb.transform(X_test)
 
-    # Train and Evaluate Naive Bayes
+    # Latih dan Evaluasi Naive Bayes
     start_time_nb = time.time()
     naive_bayes = MultinomialNB()
     naive_bayes.fit(X_train_tfidf_nb, y_train)
     end_time_nb = time.time()
     nb_pred = naive_bayes.predict(X_test_tfidf_nb)
     nb_accuracy = accuracy_score(y_test, nb_pred)
+    processing_time_nb = end_time_nb - start_time_nb
 
-    # Vectorization and Padding for LSTM
+    # Vectorisasi dan Padding untuk LSTM
     tokenizer = Tokenizer(num_words=5000, split=' ')
     tokenizer.fit_on_texts(df['clean_tweet'].values)
     X_train_seq = tokenizer.texts_to_sequences(X_train)
@@ -361,11 +296,7 @@ def tes():
     X_train_pad = pad_sequences(X_train_seq)
     X_test_pad = pad_sequences(X_test_seq, maxlen=X_train_pad.shape[1])
 
-    # Convert labels to numpy array
-    y_train = np.array(y_train)
-    y_test = np.array(y_test)
-
-    # Build LSTM model
+    # Bangun model LSTM
     model = Sequential()
     model.add(Embedding(5000, 128, input_length=X_train_pad.shape[1]))
     model.add(SpatialDropout1D(0.2))
@@ -373,46 +304,63 @@ def tes():
     model.add(Dense(3, activation='softmax'))
     model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-    # Train LSTM model
+    # Latih model LSTM
     start_time_lstm = time.time()
     model.fit(X_train_pad, y_train, epochs=10, batch_size=64, validation_data=(X_test_pad, y_test))
     end_time_lstm = time.time()
 
-    # Evaluate LSTM model
+    # Evaluasi model LSTM
     lstm_pred = model.predict(X_test_pad, batch_size=64)
     lstm_pred_classes = lstm_pred.argmax(axis=1)
     lstm_accuracy = accuracy_score(y_test, lstm_pred_classes)
+    processing_time_lstm = end_time_lstm - start_time_lstm
 
-    # Determine the best model
-    best_model = 'Naive Bayes' if nb_accuracy > lstm_accuracy else 'LSTM'
-    if best_model == 'Naive Bayes':
-        model_path = os.path.join('model', 'naive_bayes.pkl')
-        joblib.dump(naive_bayes, model_path)
+    try:
+        # Simpan model Naive Bayes ke dalam folder model
+        joblib.dump(naive_bayes, os.path.join(model_folder, 'naive_bayes_model.pkl'))
+
+        # Simpan vectorizer Naive Bayes ke dalam folder model
+        joblib.dump(vectorizer_nb, os.path.join(model_folder, 'tfidf_vectorizer.pkl'))
+
+        # Simpan model LSTM ke dalam folder model
+        model_save_path = os.path.join(model_folder, 'lstm_model.h5')
+        model.save(model_save_path)
+
+        # Simpan tokenizer LSTM ke dalam folder model
+        tokenizer_save_path = os.path.join(model_folder, 'tokenizer.pkl')
+        with open(tokenizer_save_path, 'wb') as f:
+            pickle.dump(tokenizer, f)
+    except Exception as e:
+        print(f"Error saving model: {e}")
+        return jsonify({'message': 'Error saving model', 'status': 'danger'})
+
+    # Tentukan model terbaik
+    if nb_accuracy > lstm_accuracy:
+        best_model = 'Naive Bayes'
     else:
-        model_path = os.path.join('model', 'lstm.h5')
-        model.save(model_path)
+        best_model = 'LSTM'
 
-    # Menyimpan hasil pelatihan ke dalam file CSV
-    with open('static/files/tes.csv', mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['Model', 'Accuracy', 'ProcessingTime'])
-        writer.writerow(['Naive Bayes', nb_accuracy, str(end_time_nb - start_time_nb)])
-        writer.writerow(['LSTM', lstm_accuracy, str(end_time_lstm - start_time_lstm)])
+    print(f"Best Model: {best_model}")
+    print(f"Naive Bayes Accuracy: {nb_accuracy}")
+    print(f"LSTM Accuracy: {lstm_accuracy}")
 
-    training_results = []
-    with open('static/files/tes.csv', mode='r') as file:
-        reader = csv.reader(file)
-        next(reader)  
-        for row in reader:
-            model_name, accuracy, processing_time = row
-            accuracy = round(float(accuracy), 2) * 100  
-            processing_time = round(float(processing_time), 2)  
-            training_results.append({
-                "Model": model_name,
-                "Accuracy": accuracy,
-                "ProcessingTime": processing_time
-            })
-    return render_template('tes.html', training_results=training_results)
+
+    # Simpan hasil pelatihan ke dalam tabel hasil_train
+    cur = mysql.cursor()
+    cur.execute("INSERT INTO hasil_train (best_model, acc_nb, processtime_nb, acc_lstm, processtime_lstm) VALUES (%s, %s, %s, %s, %s)",
+                (best_model, nb_accuracy, processing_time_nb, lstm_accuracy, processing_time_lstm))
+    mysql.commit()
+
+    # Simpan hasil preprocessing ke dalam tabel hasil_preprocessing
+    cur = mysql.cursor()
+    for index, row in df.iterrows():
+        cur.execute("INSERT INTO hasil_preprocessing (dataset_id, clean_text) VALUES (%s, %s)",
+                    (row['id'], row['clean_tweet']))
+        mysql.commit()
+    cur.close()
+
+    # Flash message untuk memberi tahu pengguna bahwa proses pelatihan berhasil
+    return jsonify({'message': 'Data Hasil Train Berhasil Ditambahkan ke Database', 'status': 'success', 'best_model': best_model})
 
 
 # CRUD USER
@@ -507,23 +455,6 @@ def delete_dataset(dataset_id):
     flash('Dataset deleted successfully', 'success')
     return redirect('/dataset')
 
-# Load saved models and necessary objects
-model_type = "lstm"  # or "naive_bayes"
-lstm_model_path = os.path.join("model", "lstm_model.h5")
-naive_bayes_model_path = os.path.join("model", "naive_bayes_model.pkl")
-vectorizer_path = os.path.join("model", "tfidf_vectorizer.pkl")
-tokenizer_path = os.path.join("model", "tokenizer.pkl")
-
-if model_type == "naive_bayes":
-    best_model = joblib.load(naive_bayes_model_path)
-    vectorizer = joblib.load(vectorizer_path)
-else:
-    best_model = load_model(lstm_model_path)
-    tokenizer_lstm = joblib.load(tokenizer_path)
-    max_words = 200
-
-# Initialize translator
-translator = Translator()
 
 # Function to preprocess text
 # def clean_text(s):
@@ -556,48 +487,41 @@ translator = Translator()
 #     return stemmer.stem(text)
 
 
-def preprocess(text):
-    if not isinstance(text, str):
+def preprocess(clean_text):
+    if not isinstance(clean_text, str):
         return ''
-    
-    # Menghapus URL
-    text = re.sub(r'http\S+', '', text)
-    text = re.sub('(RT|via)((?:\\b\\W*@\\w+)+)', ' ', text)
-    text = re.sub(r'@\S+', '', text)
-    text = re.sub('&amp', ' ', text)
-    
-    # Menghapus angka
-    text = re.sub(r'\d+', '', text)
-    
-    # Menghapus simbol
-    text = re.sub(r'[^\w\s]', '', text)
-    
-    # Menghapus karakter khusus
-    text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
-    
-    # Lowercase
-    text = text.lower()
 
-    # Normalisasi kata-kata tertentu
-    text = re.sub(r'\bMcD\b|\bMCD\b|\bMcDonalds\b|\bMcDonald\'s\b', 'mcd', text)
-    text = re.sub(r'\bKFC\b', 'kfc', text)
-    text = re.sub(r'\bstarbak\b|\bStarbucks\b|\bstarbuck\b|\bsbuck\b|\bsbux\b', 'starbucks', text)
+    # Menghapus spasi berlebih
+    clean_text = re.sub(r'\s+', ' ', clean_text)
+    
+    # Mengubah teks menjadi lowercase
+    clean_text = clean_text.casefold()
     
     # Tokenisasi
-    tokens = word_tokenize(text)
+    tokens = word_tokenize(clean_text)
     
-    # Penghapusan stopword
-    stop_words = set(stopwords.words('english'))
-    tokens = [word for word in tokens if word not in stop_words]
+    # Penghapusan stopword (menggunakan Sastrawi untuk bahasa Indonesia)
+    stop_factory = StopWordRemoverFactory().get_stop_words()
+    dictionary = ArrayDictionary(stop_factory)
+    stopword_remover = StopWordRemover(dictionary)  # Mengubah nama variabel menjadi stopword_remover
+    stop_wr = word_tokenize(stopword_remover.remove(clean_text))
+    kalimat = ' '.join(stop_wr)
     
-    # Stemming
-    stemmer = PorterStemmer()
-    stemmed_tokens = [stemmer.stem(word) for word in tokens]
+    # Stemming (menggunakan Sastrawi untuk bahasa Indonesia)
+    factory = StemmerFactory()
+    stemmer = factory.create_stemmer()
+    stemming = stemmer.stem(kalimat)
     
-    # Menggabungkan kembali token-token yang sudah di-stem menjadi teks baru
-    processed_text = ' '.join(stemmed_tokens)
-    
-    return processed_text
+    return stemming
+
+
+
+# Load saved models and necessary objects
+best_model = "lstm"  # or "naive_bayes"
+lstm_model_path = os.path.join("model", "lstm_model.h5")
+naive_bayes_model_path = os.path.join("model", "naive_bayes_model.pkl")
+vectorizer_path = os.path.join("model", "tfidf_vectorizer.pkl")
+tokenizer_path = os.path.join("model", "tokenizer.pkl")
 
 if best_model == "Naive Bayes":
     nb_model_path = os.path.abspath("model/naive_bayes_model.pkl")
@@ -612,8 +536,9 @@ else:
     with open(lstm_tokenizer_path, 'rb') as f:
         tokenizer_lstm = pickle.load(f)
     model_type = "lstm"
+    max_words = 100  
 
-max_words = 100  # This should be set to the same value used during training
+
 # Define preprocessing and prediction functions
 def preprocess_input_sentence(sentence):
     processed_sentence = tokenizer_lstm.texts_to_sequences([sentence])
@@ -641,7 +566,6 @@ def predict_sentiment_best_model(input_sentence, model_type):
         max_sentiment = max(sentiment_scores, key=sentiment_scores.get)
         return max_sentiment, sentiment_scores
 
-# Flask routes
 @app.route('/analyze', methods=['POST'])
 def analyze():
     input_sentence = request.form['text']
@@ -658,7 +582,6 @@ def analyze():
     return render_template('guest.html', input_text=input_sentence, sentiment=predicted_sentiment, scores=sentiment_scores, clean_text=cleaned_input)
 
 
-# SCRAPING
 scraped_files = []  # List untuk menyimpan nama file CSV yang sudah dilakukan scraping
 
 @app.route('/scrape', methods=['POST'])
@@ -699,11 +622,11 @@ def do_scrape():
                 "user": row[1],
                 "tweet": row[2],
                 "clean": row[3],
-                "casefold": row[4],
-                "tokenize": row[5],
-                "stopword": row[6],
-                "stemming": row[7],
-                "sentimen": row[8]
+                "sentimen": row[4],
+                "casefold": row[5],
+                "tokenize": row[6],
+                "stopword": row[7],
+                "stemming": row[8]
             })
 
         return jsonify(message="Scraping berhasil!", data=hasil_data)
@@ -715,7 +638,7 @@ hasil_preprocessing = []
 hasil_labeling = []
 def preprocessing_and_labeling_twitter():
     # Membuat File CSV untuk preprocessing dan labeling
-    file_combined = open('static/files/Data Preprocessing_Labeling.csv', 'w', newline='', encoding='utf-8')
+    file_combined = open('static/files/Data Preprocessing Labeling.csv', 'w', newline='', encoding='utf-8')
     writer_combined = csv.writer(file_combined)
 
     hasil_preprocessing.clear()
@@ -727,66 +650,148 @@ def preprocessing_and_labeling_twitter():
         next(readCSV)
         
         for row in readCSV:
-            text_to_process = row[3]
+            # Pastikan baris memiliki cukup elemen
+            if len(row) > 14:
+                text_to_process = row[3]
 
-            # Preprocessing
-            clean = ' '.join(re.sub("(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", text_to_process).split())
-            clean = re.sub("\d+", "", clean)
-            clean = re.sub(r"\b[a-zA-Z]\b", "", clean)
-            clean = re.sub('\s+', ' ', clean)
-            clean = clean.translate(clean.maketrans("", "", string.punctuation))
-            casefold = clean.casefold()
-            tokenizing = nltk.tokenize.word_tokenize(casefold)
-            stop_factory = StopWordRemoverFactory().get_stop_words()
-            more_stop_word = ['&amp', 'ad', 'ada', 'ae', 'ah', 'aja', 'ajar', 'ajar', 'amp', 'apa', 'aya', 'bab', 'bajo', 'bar', 'bbrp', 'beda', 'begini', 'bgmn', 'bgt', 'bhw', 'biar', 'bikin', 'bilang', 'bkh', 'bkn', 'bln', 'bnyk', 'brt', 'buah', 'cc', 'cc', 'ckp', 'com', 'cuy', 'd', 'dab', 'dah', 'dan', 'dg', 'dgn', 'di', 'dih', 'dlm', 'dm', 'dpo', 'dr', 'dr', 'dri', 'duga', 'duh', 'enth', 'er', 'et', 'ga', 'gak', 'gal', 'gin', 'gitu', 'gk', 'gmn', 'gs', 'gt', 'gue', 'gw', 'hah', 'hallo', 'halo', 'hehe', 'hello', 'hha', 'hrs', 'https', 'ia', 'iii', 'in', 'ini', 'iw', 'jadi', 'jadi', 'jangn', 'jd', 'jg', 'jgn', 'jls', 'kak', 'kali', 'kalo', 'kan', 'kch', 'ke', 'kena', 'ket', 'kl', 'kll', 'klo', 'km', 'kmrn', 'knp', 'kok', 'kpd', 'krn', 'kui', 'lagi', 'lah', 'lahh', 'lalu', 'lbh', 'lewat', 'loh', 'lu', 'mah', 'mau', 'min', 'mlkukan', 'mls', 'mnw', 'mrk', 'n', 'nan', 'ni', 'nih', 'no', 'nti', 'ntt', 'ny', 'nya', 'nyg', 'oleh', 'ono', 'ooooo', 'op', 'org', 'pen', 'pk', 'pun', 'qq', 'rd', 'rt', 'sama', 'sbg', 'sdh', 'sdrhn', 'segera', 'sgt', 'si', 'si', 'sih', 'sj', 'so', 'sy', 't', 'tak', 'tak', 'tara', 'tau', 'td', 'tdk', 'tdk', 'thd', 'thd', 'thn', 'tindkn', 'tkt', 'tp', 'tsb', 'ttg', 'ttp', 'tuh', 'tv', 'u', 'upa', 'utk', 'uyu', 'viral', 'vm', 'wae', 'wah', 'wb', 'wes', 'wk', 'wkwk', 'wkwkwk', 'wn', 'woiii', 'xxxx', 'ya', 'yaa', 'yah', 'ybs', 'ye', 'yg', 'ykm']
-            data = stop_factory + more_stop_word
-            dictionary = ArrayDictionary(data)
-            str = StopWordRemover(dictionary)
-            stop_wr = nltk.tokenize.word_tokenize(str.remove(casefold))
-            kalimat = ' '.join(stop_wr)
-            factory = StemmerFactory()
-            stemmer = factory.create_stemmer()
-            stemming = stemmer.stem(kalimat)
-            
-            # Labeling
-            try:
-                value = translator.translate(stemming, dest='en')
-                terjemahan = value.text
-                data_label = TextBlob(terjemahan)
-                
-                # Kata kunci untuk sentimen positif
-                kata_positif = ["berhenti mengonsumsi", "berhenti membeli", "tidak akan lagi membeli", "semangat boikot", "beralih produk lokal"]  
-                
-                # Kata kunci untuk sentimen negatif
-                kata_negatif = ["membeli", "mengonsumsi", "menyukai", "memakai"]  
-                
-                sentiment = "Netral"  
-                
-                # Periksa apakah ada kata kunci positif atau negatif dalam terjemahan
-                if any(kata in terjemahan for kata in kata_positif):
-                    sentiment = "Positif"
-                elif any(kata in terjemahan for kata in kata_negatif):
-                    sentiment = "Negatif"
-                elif data_label.sentiment.polarity > 0.0:
-                    sentiment = "Positif"
-                elif data_label.sentiment.polarity == 0.0:
-                    sentiment = "Netral"
-                else:
-                    sentiment = "Negatif"
+                # Preprocessing
+                clean = ' '.join(re.sub(r"(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", text_to_process).split())
+                clean = re.sub(r"\d+", "", clean)
+                clean = re.sub(r"\b[a-zA-Z]\b", "", clean)
+                clean = re.sub(r'\s+', ' ', clean)
+                clean = clean.translate(clean.maketrans("", "", string.punctuation))
+                casefold = clean.casefold()
+                # Normalisasi kata-kata tertentu
+                clean = re.sub(r'\bMcD\b|\bMCD\b|\bMcDonalds\b|\bMcDonald\'s\b', 'mcd', clean)
+                clean = re.sub(r'\bKFC\b', 'kfc', clean)
+                clean = re.sub(r'\bstarbak\b|\bStarbucks\b|\bstarbuck\b|\bsbuck\b|\bsbux\b', 'starbucks', clean)
 
-                # Menulis baris ke file CSV
-                row_combined = [row[1], row[14], row[3], clean, casefold, tokenizing, stop_wr, stemming, sentiment]
-                writer_combined.writerow(row_combined)
+                tokenizing = nltk.tokenize.word_tokenize(casefold)
+
+                stop_factory = StopWordRemoverFactory().get_stop_words()
+                dictionary = ArrayDictionary(stop_factory)
+                str = StopWordRemover(dictionary)
+                stop_wr = nltk.tokenize.word_tokenize(str.remove(casefold))
+                kalimat = ' '.join(stop_wr)
+                factory = StemmerFactory()
+                stemmer = factory.create_stemmer()
+                stemming = stemmer.stem(kalimat)
                 
-                # Tambahkan hasil preprocessing ke variabel hasil_preprocessing
-                hasil_preprocessing.append(row_combined)
-            except Exception as e:
-                print(f"Error: {e}")
+                # Labeling
+                try:
+                    value = translator.translate(stemming, dest='en')
+                    terjemahan = value.text
+                    data_label = TextBlob(terjemahan)
+                    
+                    # Aturan sentimen untuk mendukung gerakan boikot produk Israel
+                    kata_positif = [
+                        "dukung Palestina", "dukung boikot produk", "berhenti mengonsumsi", 
+                        "berhenti membeli", "tidak akan lagi membeli", "semangat boikot", 
+                        "beralih produk lokal", "dukung boikot", "mendukung boikot"
+                        "tolak produk Israel", "mendukung boikot produk"
+                        "boikot produk Israel", "mendukung gerakan boikot"
+                        "menolak investasi Israel", "ayo boikot terus"
+                        "dukung solidaritas Palestina", "stop beli"
+                        "tolak produk zionis"
+                    ]
+
+                    # Aturan sentimen untuk tidak mendukung gerakan boikot produk Israel
+                    kata_negatif = [
+                        "dukung produk Israel", "tolak boikot"
+                        "tolak boikot Palestina","masih membeli", 
+                        "tetap mengonsumsi", "menyukai", "memakai", 
+                        "menolak boikot", "tolak boikot"
+                        "tidak setuju dengan boikot",
+                        "tolak gerakan boikot"
+                    ] 
+                    
+                    sentiment = "Netral"  
+                    
+                    # Periksa apakah ada kata kunci positif atau negatif dalam terjemahan
+                    if any(kata in terjemahan for kata in kata_positif):
+                        sentiment = "Positif"
+                    elif any(kata in terjemahan for kata in kata_negatif):
+                        sentiment = "Negatif"
+                    elif data_label.sentiment.polarity > 0.0:
+                        sentiment = "Positif"
+                    elif data_label.sentiment.polarity < 0.0:
+                        sentiment = "Negatif"
+                    else:
+                        sentiment = "Netral"
+
+                    # Menulis baris ke file CSV
+                    row_combined = [row[1], row[14], row[3], clean, sentiment, casefold, tokenizing, stop_wr, stemming]
+                    writer_combined.writerow(row_combined)
+                    
+                    # Tambahkan hasil preprocessing ke variabel hasil_preprocessing
+                    hasil_preprocessing.append(row_combined)
+                except Exception as e:
+                    print(f"Error: {e}")
 
     file_combined.close()
 
+    # Memuat model terbaik
+    best_model = "lstm" or "naive_bayes"
+    lstm_model_path = os.path.join("model", "lstm_model.h5")
+    tokenizer_path = os.path.join("model", "tokenizer.pkl")
+
+    if best_model == "Naive Bayes":
+        nb_model_path = os.path.abspath("model/naive_bayes_model.pkl")
+        nb_vectorizer_path = os.path.abspath("model/tfidf_vectorizer.pkl")
+        naive_bayes = joblib.load(nb_model_path)
+        vectorizer_nb = joblib.load(nb_vectorizer_path)
+
+        # Preprocess data
+        X_test = [row[3] for row in hasil_preprocessing]
+
+        # Transform text data to vectors
+        X_test_vect = vectorizer_nb.transform(X_test)
+
+        # Predict sentiments
+        y_pred_nb = naive_bayes.predict(X_test_vect)
+
+        # Assign predicted sentiments to hasil_preprocessing
+        for i in range(len(hasil_preprocessing)):
+            hasil_preprocessing[i].append(y_pred_nb[i])
+
+        # Save hasil_preprocessing with sentiment labels
+        with open('static/files/Hasil Preprocessing dengan Sentiment Label.csv', 'w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            writer.writerows(hasil_preprocessing)
+
+        print("Hasil Preprocessing dengan Sentiment Label telah disimpan.")
+
+    elif best_model == "lstm":
+        # Load LSTM model and necessary tokenizer
+        model = load_model(lstm_model_path)
+        tokenizer = joblib.load(tokenizer_path)
+
+        # Preprocess data
+        max_len = 50
+        X_test = tokenizer.texts_to_sequences([row[3] for row in hasil_preprocessing])
+        X_test = pad_sequences(X_test, maxlen=max_len)
+
+        # Predict sentiments
+        y_pred_lstm = model.predict(X_test)
+
+        # Assign predicted sentiments to hasil_preprocessing
+        for i in range(len(hasil_preprocessing)):
+            for prediction in y_pred_lstm[i]:
+                sentiment_label = "Negatif" if prediction < 0.5 else "Positif"
+                hasil_preprocessing[i].append(sentiment_label)
+
+
     flash('Preprocessing dan Labeling Berhasil', 'preprocessing_labeling_data')
+
+    # Evaluasi akurasi
+    labels_true = [row[4] for row in hasil_preprocessing]
+    labels_pred = [row[9] for row in hasil_preprocessing]  # Ubah indeks ke indeks kolom hasil prediksi
+    accuracy = accuracy_score(labels_true, labels_pred)
+    print(f"Akurasi model: {accuracy}")
+
     return hasil_preprocessing, hasil_labeling
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

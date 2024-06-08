@@ -8,6 +8,7 @@
             <div class="col-lg-6 offset-lg-1 text-center">
                 <h1 class="text-white">Welcome to Sentiment.ly!</h1>
                 <p>Platform Analisis Sentimen Twitter Mengenai Boikot Produk</p>
+                <h2 class="text-white">Sentimen Mayoritas: <b>{{ majority_sentiment }}</b></h2>
             </div>
             <div class="col-lg-5">
                 <div class="text-center">
@@ -64,9 +65,9 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for user in users %}
+                                        {% for product in negative_products %}
                                         <tr>
-                                            <td>{{ user[1] }}</td>
+                                            <td>{{ product['tweet'] }}</td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
@@ -98,9 +99,9 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for user in users %}
+                                        {% for product in positive_products %}
                                         <tr>
-                                            <td>{{ user[1] }}</td>
+                                            <td>{{ product['tweet'] }}</td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
@@ -132,9 +133,9 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for user in users %}
+                                        {% for product in neutral_products %}
                                         <tr>
-                                            <td>{{ user[1] }}</td>
+                                            <td>{{ product['tweet'] }}</td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>

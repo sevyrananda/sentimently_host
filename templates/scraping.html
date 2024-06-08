@@ -61,11 +61,11 @@
                                     <th>Username</th>
                                     <th>Tweet</th>
                                     <th>Cleansing</th>
+                                    <th>Sentimen</th>
                                     <th>Case Folding</th>
                                     <th>Tokenizing</th>
                                     <th>Stopword</th>
                                     <th>Stemming</th>
-                                    <th>Sentimen</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -78,6 +78,7 @@
         </div>
     </div>
 </div>
+
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
@@ -141,11 +142,11 @@
                         <td>${row.user}</td>
                         <td>${row.tweet}</td>
                         <td>${row.clean}</td>
+                        <td><span class="badge ${row.sentimen === 'Positif' ? 'bg-success' : row.sentimen === 'Netral' ? 'bg-warning' : 'bg-danger'} text-white">${row.sentimen}</span></td>
                         <td>${row.casefold}</td>
                         <td>${row.tokenize}</td>
                         <td>${row.stopword}</td>
                         <td>${row.stemming}</td>
-                        <td><span class="badge ${row.sentimen === 'Positif' ? 'bg-success' : row.sentimen === 'Netral' ? 'bg-warning' : 'bg-danger'} text-white">${row.sentimen}</span></td>
                     `;
 
                     tableBody.appendChild(tr);
