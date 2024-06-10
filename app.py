@@ -582,7 +582,7 @@ def analyze():
     return render_template('guest.html', input_text=input_sentence, sentiment=predicted_sentiment, scores=sentiment_scores, clean_text=cleaned_input)
 
 
-scraped_files = []  # List untuk menyimpan nama file CSV yang sudah dilakukan scraping
+scraped_files = []  # List to store scraped CSV filenames
 
 @app.route('/scrape', methods=['POST'])
 def scrape():
@@ -600,23 +600,22 @@ def do_scrape():
         limit = request.json['limit']
         keyword = request.json['keyword']
 
-        # Jalankan skrip untuk scraping di sini
+        # Run scraping script
         data = 'data_boikot.csv'
         search_keyword = f'{keyword} lang:id until:{until_date.strftime("%Y-%m-%d")} since:{since_date.strftime("%Y-%m-%d")}'
-
         os.system(f'npx tweet-harvest@latest -o "{data}" -s "{search_keyword}" -l {limit} --token "{auth_token}"')
 
-        # Salin file dari tweets-data/data_boikot.csv ke static/files/data_boikot.csv
+        # Copy the scraped data to static folder
         source_file = 'tweets-data/data_boikot.csv'
         destination_file = 'static/files/Data Scraping.csv'
         shutil.copyfile(source_file, destination_file)
 
-        # Setelah scraping selesai, lakukan preprocessing dan labeling
+        # After scraping, perform preprocessing and labeling
         hasil_preprocessing, hasil_labeling = preprocessing_and_labeling_twitter()
 
-        # Menyusun data untuk dikirim ke frontend
+        # Prepare data for frontend
         hasil_data = []
-        for i, row in enumerate(hasil_preprocessing):
+        for row in hasil_preprocessing:
             hasil_data.append({
                 "tgl": row[0],
                 "user": row[1],
@@ -631,167 +630,140 @@ def do_scrape():
 
         return jsonify(message="Scraping berhasil!", data=hasil_data)
     except Exception as e:
+        print(f"Error during scraping and processing: {e}")
         return jsonify(error=str(e))
-
 
 hasil_preprocessing = []
 hasil_labeling = []
+
 def preprocessing_and_labeling_twitter():
-    # Membuat File CSV untuk preprocessing dan labeling
-    file_combined = open('static/files/Data Preprocessing Labeling.csv', 'w', newline='', encoding='utf-8')
-    writer_combined = csv.writer(file_combined)
+    try:
+        # Create CSV for preprocessing and labeling
+        file_combined = open('static/files/Data Preprocessing Labeling.csv', 'w', newline='', encoding='utf-8')
+        writer_combined = csv.writer(file_combined)
 
-    hasil_preprocessing.clear()
-    hasil_labeling.clear()
-    translator = Translator()
+        hasil_preprocessing.clear()
+        hasil_labeling.clear()
+        translator = Translator()
 
-    with open("static/files/Data Scraping.csv", "r", encoding='utf-8') as csvfile:
-        readCSV = csv.reader(csvfile, delimiter=',')
-        next(readCSV)
-        
-        for row in readCSV:
-            # Pastikan baris memiliki cukup elemen
-            if len(row) > 14:
-                text_to_process = row[3]
+        with open("static/files/Data Scraping.csv", "r", encoding='utf-8') as csvfile:
+            readCSV = csv.reader(csvfile, delimiter=',')
+            next(readCSV)
+            
+            for row in readCSV:
+                if len(row) > 14:
+                    text_to_process = row[3]
+                    clean = ' '.join(re.sub(r"(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", text_to_process).split())
+                    clean = re.sub(r"\d+", "", clean)
+                    clean = re.sub(r"\b[a-zA-Z]\b", "", clean)
+                    clean = re.sub(r'\s+', ' ', clean)
+                    clean = clean.translate(clean.maketrans("", "", string.punctuation))
+                    casefold = clean.casefold()
+                    clean = re.sub(r'\bMcD\b|\bMCD\b|\bMcDonalds\b|\bMcDonald\'s\b', 'mcd', clean)
+                    clean = re.sub(r'\bKFC\b', 'kfc', clean)
+                    clean = re.sub(r'\bstarbak\b|\bStarbucks\b|\bstarbuck\b|\bsbuck\b|\bsbux\b', 'starbucks', clean)
 
-                # Preprocessing
-                clean = ' '.join(re.sub(r"(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", text_to_process).split())
-                clean = re.sub(r"\d+", "", clean)
-                clean = re.sub(r"\b[a-zA-Z]\b", "", clean)
-                clean = re.sub(r'\s+', ' ', clean)
-                clean = clean.translate(clean.maketrans("", "", string.punctuation))
-                casefold = clean.casefold()
-                # Normalisasi kata-kata tertentu
-                clean = re.sub(r'\bMcD\b|\bMCD\b|\bMcDonalds\b|\bMcDonald\'s\b', 'mcd', clean)
-                clean = re.sub(r'\bKFC\b', 'kfc', clean)
-                clean = re.sub(r'\bstarbak\b|\bStarbucks\b|\bstarbuck\b|\bsbuck\b|\bsbux\b', 'starbucks', clean)
+                    tokenizing = nltk.tokenize.word_tokenize(casefold)
 
-                tokenizing = nltk.tokenize.word_tokenize(casefold)
-
-                stop_factory = StopWordRemoverFactory().get_stop_words()
-                dictionary = ArrayDictionary(stop_factory)
-                str = StopWordRemover(dictionary)
-                stop_wr = nltk.tokenize.word_tokenize(str.remove(casefold))
-                kalimat = ' '.join(stop_wr)
-                factory = StemmerFactory()
-                stemmer = factory.create_stemmer()
-                stemming = stemmer.stem(kalimat)
-                
-                # Labeling
-                try:
-                    value = translator.translate(stemming, dest='en')
-                    terjemahan = value.text
-                    data_label = TextBlob(terjemahan)
+                    stop_factory = StopWordRemoverFactory().get_stop_words()
+                    dictionary = ArrayDictionary(stop_factory)
+                    str = StopWordRemover(dictionary)
+                    stop_wr = nltk.tokenize.word_tokenize(str.remove(casefold))
+                    kalimat = ' '.join(stop_wr)
+                    factory = StemmerFactory()
+                    stemmer = factory.create_stemmer()
+                    stemming = stemmer.stem(kalimat)
                     
-                    # Aturan sentimen untuk mendukung gerakan boikot produk Israel
-                    kata_positif = [
-                        "dukung Palestina", "dukung boikot produk", "berhenti mengonsumsi", 
-                        "berhenti membeli", "tidak akan lagi membeli", "semangat boikot", 
-                        "beralih produk lokal", "dukung boikot", "mendukung boikot"
-                        "tolak produk Israel", "mendukung boikot produk"
-                        "boikot produk Israel", "mendukung gerakan boikot"
-                        "menolak investasi Israel", "ayo boikot terus"
-                        "dukung solidaritas Palestina", "stop beli"
-                        "tolak produk zionis"
-                    ]
+                    try:
+                        value = translator.translate(stemming, dest='en')
+                        terjemahan = value.text
+                        data_label = TextBlob(terjemahan)
+                        
+                        kata_positif = [
+                            "dukung Palestina", "dukung boikot produk", "berhenti mengonsumsi", 
+                            "berhenti membeli", "tidak akan lagi membeli", "semangat boikot", 
+                            "beralih produk lokal", "dukung boikot", "mendukung boikot",
+                            "tolak produk Israel", "mendukung boikot produk",
+                            "boikot produk Israel", "mendukung gerakan boikot",
+                            "menolak investasi Israel", "ayo boikot terus",
+                            "dukung solidaritas Palestina", "stop beli",
+                            "tolak produk zionis"
+                        ]
 
-                    # Aturan sentimen untuk tidak mendukung gerakan boikot produk Israel
-                    kata_negatif = [
-                        "dukung produk Israel", "tolak boikot"
-                        "tolak boikot Palestina","masih membeli", 
-                        "tetap mengonsumsi", "menyukai", "memakai", 
-                        "menolak boikot", "tolak boikot"
-                        "tidak setuju dengan boikot",
-                        "tolak gerakan boikot"
-                    ] 
-                    
-                    sentiment = "Netral"  
-                    
-                    # Periksa apakah ada kata kunci positif atau negatif dalam terjemahan
-                    if any(kata in terjemahan for kata in kata_positif):
-                        sentiment = "Positif"
-                    elif any(kata in terjemahan for kata in kata_negatif):
-                        sentiment = "Negatif"
-                    elif data_label.sentiment.polarity > 0.0:
-                        sentiment = "Positif"
-                    elif data_label.sentiment.polarity < 0.0:
-                        sentiment = "Negatif"
-                    else:
-                        sentiment = "Netral"
+                        kata_negatif = [
+                            "dukung produk Israel", "tolak boikot",
+                            "tolak boikot Palestina","masih membeli", 
+                            "tetap mengonsumsi", "menyukai", "memakai", 
+                            "menolak boikot", "tolak boikot",
+                            "tidak setuju dengan boikot",
+                            "tolak gerakan boikot"
+                        ] 
+                        
+                        sentiment = "Netral"  
+                        
+                        if any(kata in terjemahan for kata in kata_positif):
+                            sentiment = "Positif"
+                        elif any(kata in terjemahan for kata in kata_negatif):
+                            sentiment = "Negatif"
+                        elif data_label.sentiment.polarity > 0.0:
+                            sentiment = "Positif"
+                        elif data_label.sentiment.polarity < 0.0:
+                            sentiment = "Negatif"
+                        else:
+                            sentiment = "Netral"
 
-                    # Menulis baris ke file CSV
-                    row_combined = [row[1], row[14], row[3], clean, sentiment, casefold, tokenizing, stop_wr, stemming]
-                    writer_combined.writerow(row_combined)
-                    
-                    # Tambahkan hasil preprocessing ke variabel hasil_preprocessing
-                    hasil_preprocessing.append(row_combined)
-                except Exception as e:
-                    print(f"Error: {e}")
+                        row_combined = [row[1], row[14], row[3], clean, sentiment, casefold, tokenizing, stop_wr, stemming]
+                        writer_combined.writerow(row_combined)
+                        hasil_preprocessing.append(row_combined)
+                    except Exception as e:
+                        print(f"Translation and labeling error: {e}")
 
-    file_combined.close()
+        file_combined.close()
 
-    # Memuat model terbaik
-    best_model = "lstm" or "naive_bayes"
-    lstm_model_path = os.path.join("model", "lstm_model.h5")
-    tokenizer_path = os.path.join("model", "tokenizer.pkl")
+        best_model = "lstm"  # or "naive_bayes"
+        lstm_model_path = os.path.join("model", "lstm_model.h5")
+        tokenizer_path = os.path.join("model", "tokenizer.pkl")
 
-    if best_model == "Naive Bayes":
-        nb_model_path = os.path.abspath("model/naive_bayes_model.pkl")
-        nb_vectorizer_path = os.path.abspath("model/tfidf_vectorizer.pkl")
-        naive_bayes = joblib.load(nb_model_path)
-        vectorizer_nb = joblib.load(nb_vectorizer_path)
+        if best_model == "Naive Bayes":
+            nb_model_path = os.path.abspath("model/naive_bayes_model.pkl")
+            nb_vectorizer_path = os.path.abspath("model/tfidf_vectorizer.pkl")
+            naive_bayes = joblib.load(nb_model_path)
+            vectorizer_nb = joblib.load(nb_vectorizer_path)
 
-        # Preprocess data
-        X_test = [row[3] for row in hasil_preprocessing]
+            X_test = [row[3] for row in hasil_preprocessing]
+            X_test_vect = vectorizer_nb.transform(X_test)
+            y_pred_nb = naive_bayes.predict(X_test_vect)
 
-        # Transform text data to vectors
-        X_test_vect = vectorizer_nb.transform(X_test)
+            for i in range(len(hasil_preprocessing)):
+                hasil_preprocessing[i].append(y_pred_nb[i])
 
-        # Predict sentiments
-        y_pred_nb = naive_bayes.predict(X_test_vect)
+            with open('static/files/Hasil Preprocessing dengan Sentiment Label.csv', 'w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                writer.writerows(hasil_preprocessing)
 
-        # Assign predicted sentiments to hasil_preprocessing
-        for i in range(len(hasil_preprocessing)):
-            hasil_preprocessing[i].append(y_pred_nb[i])
+        elif best_model == "lstm":
+            model = load_model(lstm_model_path)
+            tokenizer = joblib.load(tokenizer_path)
+            max_len = 50
+            X_test = tokenizer.texts_to_sequences([row[3] for row in hasil_preprocessing])
+            X_test = pad_sequences(X_test, maxlen=max_len)
+            y_pred_lstm = model.predict(X_test)
 
-        # Save hasil_preprocessing with sentiment labels
-        with open('static/files/Hasil Preprocessing dengan Sentiment Label.csv', 'w', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            writer.writerows(hasil_preprocessing)
-
-        print("Hasil Preprocessing dengan Sentiment Label telah disimpan.")
-
-    elif best_model == "lstm":
-        # Load LSTM model and necessary tokenizer
-        model = load_model(lstm_model_path)
-        tokenizer = joblib.load(tokenizer_path)
-
-        # Preprocess data
-        max_len = 50
-        X_test = tokenizer.texts_to_sequences([row[3] for row in hasil_preprocessing])
-        X_test = pad_sequences(X_test, maxlen=max_len)
-
-        # Predict sentiments
-        y_pred_lstm = model.predict(X_test)
-
-        # Assign predicted sentiments to hasil_preprocessing
-        for i in range(len(hasil_preprocessing)):
-            for prediction in y_pred_lstm[i]:
-                sentiment_label = "Negatif" if prediction < 0.5 else "Positif"
+            for i in range(len(hasil_preprocessing)):
+                sentiment_label = "Negatif" if y_pred_lstm[i][0] < 0.5 else "Positif"
                 hasil_preprocessing[i].append(sentiment_label)
 
+        labels_true = [row[4] for row in hasil_preprocessing]
+        labels_pred = [row[9] for row in hasil_preprocessing]
+        accuracy = accuracy_score(labels_true, labels_pred)
+        print(f"Akurasi model: {accuracy}")
+        print(f"Confusion Matrix: {confusion_matrix(labels_true, labels_pred)}")
 
-    flash('Preprocessing dan Labeling Berhasil', 'preprocessing_labeling_data')
+        return hasil_preprocessing, hasil_labeling
 
-    # Evaluasi akurasi
-    labels_true = [row[4] for row in hasil_preprocessing]
-    labels_pred = [row[9] for row in hasil_preprocessing]  # Ubah indeks ke indeks kolom hasil prediksi
-    accuracy = accuracy_score(labels_true, labels_pred)
-    print(f"Akurasi model: {accuracy}")
-
-    return hasil_preprocessing, hasil_labeling
-
-
+    except Exception as e:
+        print(f"Error in preprocessing and labeling: {e}")
+        return [], []
 
 if __name__ == '__main__':
     app.run(debug=True)
