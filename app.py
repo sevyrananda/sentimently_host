@@ -28,7 +28,7 @@ from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFacto
 from sklearn.metrics import accuracy_score, classification_report
 from textblob import TextBlob
 from googletrans import Translator
-from datetime import datetime
+from datetime import datetime, timedelta
 import shutil
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -92,9 +92,7 @@ def login():
 # GUEST
 @app.route('/guest')
 def guest():
-    negative_products = []
-    positive_products = []
-    neutral_products = []
+    negative_products, positive_products, neutral_products = get_sentiment_data()
 
     cur = mysql.cursor(dictionary=True)
     # Query SQL untuk mengambil data dari tabel dataset
@@ -139,6 +137,8 @@ def guest():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    negative_products, positive_products, neutral_products = get_sentiment_data()
+    
     cur = mysql.cursor(dictionary=True)
     cur.execute("SELECT * FROM users")
     users = cur.fetchall()
@@ -151,10 +151,45 @@ def dashboard():
 
 
     cur.close()
-    return render_template('dashboard.html', users=users, processed_data=processed_data, hasil_train=hasil_train)
+    return render_template('dashboard.html', 
+                           users=users, 
+                           processed_data=processed_data, 
+                           hasil_train=hasil_train,
+                           chart_data={
+                               "labels": ['Mendukung', 'Netral', 'Menolak'],
+                               "data": [
+                                   len(positive_products),
+                                   len(neutral_products),
+                                   len(negative_products)
+                               ]
+                           })
+
+def get_sentiment_data():
+    negative_products = []
+    positive_products = []
+    neutral_products = []
+
+    cur = mysql.cursor(dictionary=True)
+    query = "SELECT full_text, sentiment FROM dataset"
+    cur.execute(query)
+
+    for row in cur.fetchall():
+        full_text = row['full_text']
+        sentiment = row['sentiment']
+        if sentiment.lower() == "negatif":
+            negative_products.append({"tweet": full_text, "sentiment": "Negatif"})
+        elif sentiment.lower() == "positif":
+            positive_products.append({"tweet": full_text, "sentiment": "Positif"})
+        else:
+            neutral_products.append({"tweet": full_text, "sentiment": "Netral"})
+    
+    cur.close()
+    
+    return negative_products, positive_products, neutral_products
 
 
-@app.route('/scraping')
+
+@app.route('/scraping', methods=['GET'])
 @login_required
 def scraping():
     cur = mysql.cursor(dictionary=True)
@@ -584,34 +619,43 @@ def analyze():
 
 scraped_files = []  # List to store scraped CSV filenames
 
-@app.route('/scrape', methods=['POST'])
-def scrape():
-    since_date = request.form['since_date']
-    until_date = request.form['until_date']
-    keyword = request.form['keyword']
-    return render_template('dataset.html', since_date=since_date, until_date=until_date)
+# Mendapatkan tanggal hari ini
+today = datetime.now().date()
+
+# Mendapatkan tanggal kemarin
+yesterday = today - timedelta(days=1)
+
+# Format tanggal untuk pencarian (YYYY-MM-DD)
+since_date = yesterday.strftime('%Y-%m-%d')
+until_date = today.strftime('%Y-%m-%d')
 
 @app.route('/do_scrape', methods=['POST'])
 def do_scrape():
     try:
-        auth_token = request.json['auth_token']
-        since_date = datetime.strptime(request.json['since_date'], '%Y-%m-%d')
-        until_date = datetime.strptime(request.json['until_date'], '%Y-%m-%d')
-        limit = request.json['limit']
-        keyword = request.json['keyword']
+        auth_token = "0e12b16141a80c4510f95de2dcd5ef5b365b3fb3"  # Replace with actual auth token handling logic
+        limit = 10  # Example limit, adjust as needed
+        keyword = "boikot produk"  # Example keyword, adjust as needed
 
         # Run scraping script
         data = 'data_boikot.csv'
-        search_keyword = f'{keyword} lang:id until:{until_date.strftime("%Y-%m-%d")} since:{since_date.strftime("%Y-%m-%d")}'
+        search_keyword = f'{keyword} lang:id until:{until_date} since:{since_date}'
         os.system(f'npx tweet-harvest@latest -o "{data}" -s "{search_keyword}" -l {limit} --token "{auth_token}"')
 
-        # Copy the scraped data to static folder
+        # Copy the scraped data to a static folder (example path)
         source_file = 'tweets-data/data_boikot.csv'
         destination_file = 'static/files/Data Scraping.csv'
         shutil.copyfile(source_file, destination_file)
 
+        cur = mysql.cursor(dictionary=True)
+        
         # After scraping, perform preprocessing and labeling
         hasil_preprocessing, hasil_labeling = preprocessing_and_labeling_twitter()
+
+        # Panggil fungsi untuk menyimpan hasil ke database
+        save_to_database(cur, hasil_preprocessing)
+
+        # Tutup cursor dan koneksi database
+        cur.close()
 
         # Prepare data for frontend
         hasil_data = []
@@ -633,26 +677,26 @@ def do_scrape():
         print(f"Error during scraping and processing: {e}")
         return jsonify(error=str(e))
 
+
+
 hasil_preprocessing = []
 hasil_labeling = []
 
 def preprocessing_and_labeling_twitter():
     try:
-        # Create CSV for preprocessing and labeling
-        file_combined = open('static/files/Data Preprocessing Labeling.csv', 'w', newline='', encoding='utf-8')
-        writer_combined = csv.writer(file_combined)
-
         hasil_preprocessing.clear()
         hasil_labeling.clear()
         translator = Translator()
 
         with open("static/files/Data Scraping.csv", "r", encoding='utf-8') as csvfile:
             readCSV = csv.reader(csvfile, delimiter=',')
-            next(readCSV)
+            next(readCSV)  # Skip header
             
             for row in readCSV:
-                if len(row) > 14:
-                    text_to_process = row[3]
+                if len(row) > 9:  # Pastikan panjang row sesuai dengan yang diharapkan
+                    text_to_process = row[3]  # Misalnya, indeks 3 mungkin merujuk pada teks yang ingin diolah
+
+                    # Lakukan preprocessing di sini
                     clean = ' '.join(re.sub(r"(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", text_to_process).split())
                     clean = re.sub(r"\d+", "", clean)
                     clean = re.sub(r"\b[a-zA-Z]\b", "", clean)
@@ -673,15 +717,15 @@ def preprocessing_and_labeling_twitter():
                     factory = StemmerFactory()
                     stemmer = factory.create_stemmer()
                     stemming = stemmer.stem(kalimat)
-                    
+
                     try:
                         value = translator.translate(stemming, dest='en')
                         terjemahan = value.text
                         data_label = TextBlob(terjemahan)
-                        
+
                         kata_positif = [
-                            "dukung Palestina", "dukung boikot produk", "berhenti mengonsumsi", 
-                            "berhenti membeli", "tidak akan lagi membeli", "semangat boikot", 
+                            "dukung Palestina", "dukung boikot produk", "berhenti mengonsumsi",
+                            "berhenti membeli", "tidak akan lagi membeli", "semangat boikot",
                             "beralih produk lokal", "dukung boikot", "mendukung boikot",
                             "tolak produk Israel", "mendukung boikot produk",
                             "boikot produk Israel", "mendukung gerakan boikot",
@@ -692,15 +736,15 @@ def preprocessing_and_labeling_twitter():
 
                         kata_negatif = [
                             "dukung produk Israel", "tolak boikot",
-                            "tolak boikot Palestina","masih membeli", 
-                            "tetap mengonsumsi", "menyukai", "memakai", 
+                            "tolak boikot Palestina", "masih membeli",
+                            "tetap mengonsumsi", "menyukai", "memakai",
                             "menolak boikot", "tolak boikot",
                             "tidak setuju dengan boikot",
                             "tolak gerakan boikot"
-                        ] 
-                        
-                        sentiment = "Netral"  
-                        
+                        ]
+
+                        sentiment = "Netral"
+
                         if any(kata in terjemahan for kata in kata_positif):
                             sentiment = "Positif"
                         elif any(kata in terjemahan for kata in kata_negatif):
@@ -713,57 +757,71 @@ def preprocessing_and_labeling_twitter():
                             sentiment = "Netral"
 
                         row_combined = [row[1], row[14], row[3], clean, sentiment, casefold, tokenizing, stop_wr, stemming]
-                        writer_combined.writerow(row_combined)
                         hasil_preprocessing.append(row_combined)
+
                     except Exception as e:
                         print(f"Translation and labeling error: {e}")
 
-        file_combined.close()
-
-        best_model = "lstm"  # or "naive_bayes"
-        lstm_model_path = os.path.join("model", "lstm_model.h5")
-        tokenizer_path = os.path.join("model", "tokenizer.pkl")
-
-        if best_model == "Naive Bayes":
-            nb_model_path = os.path.abspath("model/naive_bayes_model.pkl")
-            nb_vectorizer_path = os.path.abspath("model/tfidf_vectorizer.pkl")
-            naive_bayes = joblib.load(nb_model_path)
-            vectorizer_nb = joblib.load(nb_vectorizer_path)
-
-            X_test = [row[3] for row in hasil_preprocessing]
-            X_test_vect = vectorizer_nb.transform(X_test)
-            y_pred_nb = naive_bayes.predict(X_test_vect)
-
-            for i in range(len(hasil_preprocessing)):
-                hasil_preprocessing[i].append(y_pred_nb[i])
-
-            with open('static/files/Hasil Preprocessing dengan Sentiment Label.csv', 'w', newline='', encoding='utf-8') as file:
-                writer = csv.writer(file)
-                writer.writerows(hasil_preprocessing)
-
-        elif best_model == "lstm":
-            model = load_model(lstm_model_path)
-            tokenizer = joblib.load(tokenizer_path)
-            max_len = 50
-            X_test = tokenizer.texts_to_sequences([row[3] for row in hasil_preprocessing])
-            X_test = pad_sequences(X_test, maxlen=max_len)
-            y_pred_lstm = model.predict(X_test)
-
-            for i in range(len(hasil_preprocessing)):
-                sentiment_label = "Negatif" if y_pred_lstm[i][0] < 0.5 else "Positif"
-                hasil_preprocessing[i].append(sentiment_label)
-
-        labels_true = [row[4] for row in hasil_preprocessing]
-        labels_pred = [row[9] for row in hasil_preprocessing]
-        accuracy = accuracy_score(labels_true, labels_pred)
-        print(f"Akurasi model: {accuracy}")
-        print(f"Confusion Matrix: {confusion_matrix(labels_true, labels_pred)}")
+        # Tulis hasil preprocessing dan labeling ke file CSV
+        with open('static/files/Data Preprocessing Labeling.csv', 'w', newline='', encoding='utf-8') as file_combined:
+            writer_combined = csv.writer(file_combined)
+            writer_combined.writerows(hasil_preprocessing)
 
         return hasil_preprocessing, hasil_labeling
 
     except Exception as e:
         print(f"Error in preprocessing and labeling: {e}")
         return [], []
+
+
+
+@app.route('/fetch_data_from_database', methods=['GET'])
+def fetch_data_from_database():
+    try:
+        cur = mysql.cursor(dictionary=True)
+        cur.execute("SELECT * FROM processed_datas")
+        processed_data = cur.fetchall()
+        cur.close()
+
+        return jsonify(processed_data)
+
+    except Exception as e:
+        print(f"Error fetching data from database: {e}")
+        return jsonify(error=str(e)), 500
+
+
+def save_to_database(cur, hasil_preprocessing):
+    try:
+        for row in hasil_preprocessing:
+            tgl = row[0]    # Tanggal
+            user = row[1]   # User
+            tweet = row[2]  # Tweet
+            clean = row[3]  # Cleaned text
+            sentimen = row[4]   # Sentiment
+            casefold = row[5]   # Casefold
+            tokenizing = ', '.join(row[6])   # Tokenizing
+            stopword = ', '.join(row[7])     # Stopword removal
+            stemming = row[8]   # Stemming
+
+            # Query SQL untuk memasukkan data ke dalam tabel
+            insert_query = """
+                INSERT INTO processed_datas (
+                    tgl, user, tweet, clean, sentimen, casefold, tokenize, stopword, stemming
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            insert_values = (tgl, user, tweet, clean, sentimen, casefold, tokenizing, stopword, stemming)
+
+            # Eksekusi query
+            cur.execute(insert_query, insert_values)
+            # Commit perubahan ke database
+            mysql.commit()
+            print(f"Data berhasil disimpan: {tweet}")
+
+    except Exception as e:
+        # Rollback jika terjadi error
+        mysql.rollback()
+        print(f"Error saat menyimpan data: {e}")
+
 
 if __name__ == '__main__':
     app.run(debug=True)
