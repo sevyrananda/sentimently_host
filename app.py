@@ -11,7 +11,7 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 import time
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 from flask import session
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -31,6 +31,7 @@ from datetime import datetime, timedelta
 import shutil
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -48,7 +49,7 @@ db_config = {
     'host': 'localhost',
     'user': 'root',
     'password': '',
-    'database': 'login-flask'
+    'database': 'sentimently'
 }
 
 # Membuat koneksi
@@ -96,7 +97,7 @@ def get_sentiment_data(products_to_analyze):
     neutral_products = {}
 
     cur = mysql.cursor(dictionary=True)
-    query = "SELECT tweet, sentimen FROM processed_datas"
+    query = "SELECT tweet, sentimen FROM hasil_crawl"
     cur.execute(query)
 
     for row in cur.fetchall():
@@ -129,15 +130,15 @@ def get_sentiment_data(products_to_analyze):
 @app.route('/guest')
 def guest():
     products_to_analyze = [
-        {"name": "KFC", "image": "/static/kfc.png"},
-        {"name": "McD", "image": "/static/mcd.png"},
-        {"name": "Starbucks", "image": "/static/sbux.png"},
-        {"name": "Burger King", "image": "/static/bk.png"},
-        {"name": "Aqua", "image": "/static/aqua.png"},
-        {"name": "Nestle", "image": "/static/nestle.png"},
-        {"name": "Pizza Hut", "image": "/static/ph.png"},
-        {"name": "Oreo", "image": "/static/oreo.png"},
-        {"name": "Unilever", "image": "/static/unv.png"},
+        {"name": "kfc", "image": "/static/kfc.png"},
+        {"name": "mcd", "image": "/static/mcd.png"},
+        {"name": "starbucks", "image": "/static/sbux.png"},
+        {"name": "burger king", "image": "/static/bk.png"},
+        {"name": "aqua", "image": "/static/aqua.png"},
+        {"name": "nestle", "image": "/static/nestle.png"},
+        {"name": "pizza hut", "image": "/static/ph.png"},
+        {"name": "oreo", "image": "/static/oreo.png"},
+        {"name": "unilever", "image": "/static/unv.png"},
     ]
 
     negative_products, positive_products, neutral_products = get_sentiment_data(products_to_analyze)
@@ -172,7 +173,14 @@ def guest():
         "negatif": sum(negative_products.values()),
         "netral": sum(neutral_products.values())
     }
-    overall_majority_sentiment = max(sentiment_counts, key=sentiment_counts.get)
+
+    if all(count == 0 for count in sentiment_counts.values()):
+        overall_majority_sentiment = None
+    else:
+        overall_majority_sentiment = max(sentiment_counts, key=sentiment_counts.get)
+
+    # Log overall majority sentiment
+    print(f"Overall majority sentiment: {overall_majority_sentiment}")
 
     cur = mysql.cursor(dictionary=True)
     cur.execute("SELECT * FROM users")
@@ -183,6 +191,9 @@ def guest():
                            products_sentiment=sorted_products_sentiment,
                            overall_majority_sentiment=overall_majority_sentiment,
                            users=users)
+
+
+
 
 
 # ADMIN
@@ -223,32 +234,32 @@ def dashboard():
     cur.execute("SELECT * FROM users")
     users = cur.fetchall()
 
-    cur.execute("SELECT * FROM processed_datas")
+    cur.execute("SELECT * FROM hasil_crawl")
     processed_data = cur.fetchall()
 
     cur.execute("SELECT * FROM dataset")
     dataset = cur.fetchall()
 
-    cur.execute("SELECT * FROM hasil_train ORDER BY id DESC LIMIT 1")
-    hasil_train = cur.fetchone()
+    cur.execute("SELECT * FROM evaluasi_train ORDER BY id DESC LIMIT 1")
+    evaluasi_train = cur.fetchone()
 
     cur.close()
     
-    if hasil_train:
+    if evaluasi_train:
         # Convert accuracy to percentage
-        acc_nb_percent = round(hasil_train['acc_nb'] * 100, 2)
-        acc_lstm_percent = round(hasil_train['acc_lstm'] * 100, 2)
+        acc_nb_percent = round(evaluasi_train['acc_nb'] * 100, 2)
+        acc_lstm_percent = round(evaluasi_train['acc_lstm'] * 100, 2)
         
-        # Update hasil_train with converted values
-        hasil_train['acc_nb'] = acc_nb_percent
-        hasil_train['acc_lstm'] = acc_lstm_percent
+        # Update evaluasi_train with converted values
+        evaluasi_train['acc_nb'] = acc_nb_percent
+        evaluasi_train['acc_lstm'] = acc_lstm_percent
 
     # Pass all necessary data to the template
     return render_template('dataset.html',
                            dataset=dataset, 
                            users=users, 
                            processed_data=processed_data, 
-                           hasil_train=hasil_train,
+                           evaluasi_train=evaluasi_train,
                            total_positive=total_positive,
                            total_neutral=total_neutral,
                            total_negative=total_negative,
@@ -275,7 +286,7 @@ def scraping():
     cur.execute("SELECT * FROM users")
     users = cur.fetchall()
 
-    cur.execute("SELECT * FROM processed_datas")
+    cur.execute("SELECT * FROM hasil_crawl")
     processed_data = cur.fetchall()
 
     cur.close()
@@ -304,7 +315,7 @@ def hasilCSV(filePath):
     col_names = ['tgl', 'user', 'tweet', 'clean', 'casefold', 'tokenize', 'stopword', 'stemming', 'sentimen']
     csvData = pd.read_csv(filePath, names=col_names, header=None)
     for i, row in csvData.iterrows():
-        sql = "INSERT INTO processed_datas (tgl, user, tweet, clean, casefold, tokenize, stopword, stemming, sentimen) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        sql = "INSERT INTO hasil_crawl (tgl, user, tweet, clean, casefold, tokenize, stopword, stemming, sentimen) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
         value = (row['tgl'], row['user'], row['tweet'], row['clean'], row['casefold'], row['tokenize'], row['stopword'], row['stemming'], row['sentimen'])
         cur = mysql.cursor()
         cur.execute(sql, value)
@@ -334,13 +345,13 @@ def dataset():
     cur.execute("SELECT * FROM dataset")
     dataset = cur.fetchall()
 
-    cur.execute("SELECT * FROM hasil_train ORDER BY id DESC LIMIT 1")
-    hasil_train = cur.fetchone()
+    cur.execute("SELECT * FROM evaluasi_train ORDER BY id DESC LIMIT 1")
+    evaluasi_train = cur.fetchone()
 
     cur.close()
     return render_template('dataset.html', 
                            dataset=dataset, 
-                           hasil_train=hasil_train)
+                           evaluasi_train=evaluasi_train)
 
 @app.route('/dataset', methods=['POST'])
 def uploadFiles():
@@ -378,11 +389,17 @@ def train():
         df, X_train, X_test, y_train, y_test = preprocess_data()
 
         # Train models
-        nb_accuracy, processing_time_nb, naive_bayes, vectorizer_nb = train_naive_bayes(X_train, X_test, y_train, y_test)
-        lstm_accuracy, processing_time_lstm, model, tokenizer = train_lstm(df, X_train, X_test, y_train, y_test)
+        nb_accuracy, processing_time_nb, naive_bayes, vectorizer_nb, nb_pred = train_naive_bayes(X_train, X_test, y_train, y_test)
+        lstm_accuracy, processing_time_lstm, model, tokenizer, lstm_pred_classes = train_lstm(df, X_train, X_test, y_train, y_test)
 
         # Determine best model
         best_model = evaluate_models(nb_accuracy, lstm_accuracy)
+
+        # Generate and save confusion matrix for the best model
+        if best_model == 'Naive Bayes':
+            save_confusion_matrix(y_test, nb_pred, model_folder, 'confusion_matrix_nb.png')
+        else:
+            save_confusion_matrix(y_test, lstm_pred_classes, model_folder, 'confusion_matrix_lstm.png')
 
         # Save models
         save_models(model_folder, naive_bayes, vectorizer_nb, model, tokenizer)
@@ -397,39 +414,28 @@ def train():
         print(f"Error during training: {e}")
         return jsonify({'message': f"Error saat pelatihan: {e}", 'status': 'danger'})
 
+
 def preprocess_data():
-    # Ambil dataset dari tabel dataset
     cur = mysql.cursor(dictionary=True)
     cur.execute("SELECT * FROM dataset")
     dataset = cur.fetchall()
     cur.close()
 
-    # Ubah menjadi DataFrame
     df = pd.DataFrame(dataset)
-
-    # Menghapus baris dengan nilai NaN dalam kolom 'sentiment'
     df.dropna(subset=['sentiment'], inplace=True)
 
-    # Preprocess data
     df['clean_tweet'] = df['full_text'].apply(preprocess)
     X_train, X_test, y_train, y_test = train_test_split(df['clean_tweet'], df['sentiment'], test_size=0.2, random_state=42)
 
-    # Konversi label menjadi numerik
     sentiment_mapping = {'negatif': 0, 'netral': 1, 'positif': 2}
     y_train = y_train.map(sentiment_mapping)
     y_test = y_test.map(sentiment_mapping)
 
-    # Periksa nilai NaN di y_train dan y_test setelah mapping
     if y_train.isnull().any() or y_test.isnull().any():
-        nan_indices_train = y_train[y_train.isnull()].index
-        nan_indices_test = y_test[y_test.isnull()].index
-        print("Nilai NaN ditemukan di y_train pada indeks:", nan_indices_train)
-        print("Nilai NaN ditemukan di y_test pada indeks:", nan_indices_test)
-        print("Nilai sentimen asli di y_train:", df.loc[nan_indices_train, 'sentiment'])
-        print("Nilai sentimen asli di y_test:", df.loc[nan_indices_test, 'sentiment'])
         raise ValueError("y_train atau y_test mengandung nilai NaN setelah mapping sentimen")
 
     return df, X_train, X_test, y_train, y_test
+
 
 def train_naive_bayes(X_train, X_test, y_train, y_test):
     # Vectorisasi untuk Naive Bayes
@@ -446,18 +452,16 @@ def train_naive_bayes(X_train, X_test, y_train, y_test):
     nb_accuracy = accuracy_score(y_test, nb_pred)
     processing_time_nb = end_time_nb - start_time_nb
 
-    return nb_accuracy, processing_time_nb, naive_bayes, vectorizer_nb
+    return nb_accuracy, processing_time_nb, naive_bayes, vectorizer_nb, nb_pred
 
 def train_lstm(df, X_train, X_test, y_train, y_test):
-    # Vectorisasi dan Padding untuk LSTM
     tokenizer = Tokenizer(num_words=5000, split=' ')
     tokenizer.fit_on_texts(df['clean_tweet'].values)
     X_train_seq = tokenizer.texts_to_sequences(X_train)
     X_test_seq = tokenizer.texts_to_sequences(X_test)
-    X_train_pad = pad_sequences(X_train_seq)
-    X_test_pad = pad_sequences(X_test_seq, maxlen=X_train_pad.shape[1])
+    X_train_pad = pad_sequences(X_train_seq, maxlen=100)  # Set maxlen
+    X_test_pad = pad_sequences(X_test_seq, maxlen=X_train_pad.shape[1])  # Set maxlen sama dengan X_train_pad
 
-    # Bangun model LSTM
     model = Sequential()
     model.add(Embedding(5000, 128, input_length=X_train_pad.shape[1]))
     model.add(SpatialDropout1D(0.2))
@@ -465,18 +469,16 @@ def train_lstm(df, X_train, X_test, y_train, y_test):
     model.add(Dense(3, activation='softmax'))
     model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-    # Latih model LSTM
     start_time_lstm = time.time()
     model.fit(X_train_pad, y_train, epochs=10, batch_size=64, validation_data=(X_test_pad, y_test))
     end_time_lstm = time.time()
 
-    # Evaluasi model LSTM
     lstm_pred = model.predict(X_test_pad, batch_size=64)
     lstm_pred_classes = lstm_pred.argmax(axis=1)
     lstm_accuracy = accuracy_score(y_test, lstm_pred_classes)
     processing_time_lstm = end_time_lstm - start_time_lstm
 
-    return lstm_accuracy, processing_time_lstm, model, tokenizer
+    return lstm_accuracy, processing_time_lstm, model, tokenizer, lstm_pred_classes
 
 def evaluate_models(nb_accuracy, lstm_accuracy):
     # Tentukan model terbaik
@@ -512,19 +514,24 @@ def save_models(model_folder, naive_bayes, vectorizer_nb, model, tokenizer):
         raise Exception('Error menyimpan model')
 
 def save_training_results(df, best_model, nb_accuracy, processing_time_nb, lstm_accuracy, processing_time_lstm):
-    # Simpan hasil pelatihan ke dalam tabel hasil_train
-    cur = mysql.cursor()
-    cur.execute("INSERT INTO hasil_train (best_model, acc_nb, processtime_nb, acc_lstm, processtime_lstm) VALUES (%s, %s, %s, %s, %s)",
-                (best_model, nb_accuracy, processing_time_nb, lstm_accuracy, processing_time_lstm))
-    mysql.commit()
-
-    # Simpan hasil preprocessing ke dalam tabel hasil_preprocessing
-    cur = mysql.cursor()
-    for index, row in df.iterrows():
-        cur.execute("INSERT INTO hasil_preprocessing (dataset_id, clean_text) VALUES (%s, %s)",
-                    (row['id'], row['clean_tweet']))
+    try:
+        cur = mysql.cursor()
+        cur.execute("INSERT INTO evaluasi_train (best_model, acc_nb, processtime_nb, acc_lstm, processtime_lstm) VALUES (%s, %s, %s, %s, %s)",
+                    (best_model, nb_accuracy, processing_time_nb, lstm_accuracy, processing_time_lstm))
+        
         mysql.commit()
-    cur.close()
+        cur.close()
+    except Exception as e:
+        print(f"Error saving training results: {e}")
+        raise
+
+def save_confusion_matrix(y_test, predictions, model_folder, filename):
+    cm = confusion_matrix(y_test, predictions)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot(cmap=plt.cm.Blues)
+    plt.title(f'Confusion Matrix: {filename}')
+    plt.savefig(os.path.join(model_folder, filename))
+    plt.close()
 
 
 # CRUD USER
@@ -565,7 +572,7 @@ def edit_user(user_id):
 @app.route('/delete_text/<int:data_id>')
 def delete_text(data_id):
     cur = mysql.cursor()
-    cur.execute("DELETE FROM processed_datas WHERE id = %s", (data_id,))
+    cur.execute("DELETE FROM hasil_crawl WHERE id = %s", (data_id,))
     mysql.commit()
     cur.close()
     flash('Data Scraping Berhasil Dihapus', 'success')
@@ -577,7 +584,7 @@ def edit_text(data_id):
         text = request.form['text']
         sentiment = request.form['sentiment']
         cur = mysql.cursor()
-        cur.execute("UPDATE processed_datas SET text = %s, sentiment = %s WHERE id = %s", (text, sentiment, data_id))
+        cur.execute("UPDATE hasil_crawl SET text = %s, sentiment = %s WHERE id = %s", (text, sentiment, data_id))
         mysql.commit()
         cur.close()
         flash('Data Scraping Berhasil Diupdate', 'success')
@@ -615,7 +622,7 @@ def delete_dataset(dataset_id):
     cur = mysql.cursor()
     try:
         # Hapus records terkait di hasil_preprocessing
-        cur.execute("DELETE FROM hasil_preprocessing WHERE dataset_id = %s", (dataset_id,))
+        cur.execute("DELETE FROM tweet_clean WHERE dataset_id = %s", (dataset_id,))
         # Hapus record di dataset
         cur.execute("DELETE FROM dataset WHERE id = %s", (dataset_id,))
         mysql.commit()
@@ -629,6 +636,7 @@ def delete_dataset(dataset_id):
 
 
 
+# Fungsi Preprocess
 def preprocess(clean_text):
     if not isinstance(clean_text, str):
         return ''
@@ -653,8 +661,14 @@ def preprocess(clean_text):
     
     # Normalisasi kata kunci seperti McD, McDonalds, Starbucks, dll.
     casefold = re.sub(r'\bMcD\b|\bMCD\b|\bMcDonalds\b|\bMcDonald\'s\b', 'mcd', casefold)
-    casefold = re.sub(r'\bKFC\b', 'kfc', casefold)
-    casefold = re.sub(r'\bstarbak\b|\bStarbucks\b|\bstarbuck\b|\bsbuck\b|\bsbux\b', 'starbucks', casefold)
+    casefold = re.sub(r'\bKFC\b|\bKfc\b', 'kfc', casefold)
+    casefold = re.sub(r'\bstarbak\b|\bStarbucks\b|\bstarbuck\b|\bsbuck\b|\bsbux\b|\bSTARBUCKS\b', 'starbucks', casefold)
+    casefold = re.sub(r'\bAqua\b|\bAQUA\b', 'aqua', casefold)
+    casefold = re.sub(r'\bOreo\b|\bOREO\b', 'oreo', casefold)
+    casefold = re.sub(r'\bNestle\b|\bNESTLE\b', 'nestle', casefold)
+    casefold = re.sub(r'\bUnilever\b|\bUNILEVER\b', 'unilever', casefold)
+    casefold = re.sub(r'\bPizza Hut\b|\bpizza Hut\b|\bPH\b|\bph\b', 'pizza hut', casefold)
+    casefold = re.sub(r'\bBurger King\b|\bBurger king\b|\BK\b|\bk\b', 'burger king', casefold)
 
     # Tokenisasi
     tokens = nltk.tokenize.word_tokenize(casefold)
@@ -672,7 +686,6 @@ def preprocess(clean_text):
     stemming = stemmer.stem(kalimat)
     
     return stemming
-
 
 
 # Load saved models and necessary objects
@@ -705,14 +718,14 @@ def preprocess_input_sentence(sentence):
     return processed_sentence
 
 def preprocess_input_sentence_nb(sentence):
-    cleaned_sentence = preprocess(sentence)  # Implement your text cleaning here
+    cleaned_sentence = preprocess(sentence)
     return cleaned_sentence
 
 def predict_sentiment_best_model(input_sentence, model_type):
     if model_type == "naive_bayes":
         input_tfidf = vectorizer_nb.transform([input_sentence])
         predicted_sentiment = naive_bayes.predict(input_tfidf)[0]
-        sentiment_scores = None  # Naive Bayes might not have probability scores readily available
+        sentiment_scores = None
         return predicted_sentiment, sentiment_scores
     elif model_type == "lstm":
         processed_input = preprocess_input_sentence(input_sentence)
@@ -725,38 +738,112 @@ def predict_sentiment_best_model(input_sentence, model_type):
         max_sentiment = max(sentiment_scores, key=sentiment_scores.get)
         return max_sentiment, sentiment_scores
 
+
+
+# Route for analyzing sentiment
 @app.route('/analyze', methods=['POST'])
 def analyze():
     input_sentence = request.form['text']
-    # Clean the input text
-    cleaned_input = preprocess(input_sentence)
+    cleaned_input = preprocess(input_sentence)  # Clean the input text (assuming preprocess function is defined elsewhere)
     
     if model_type == "naive_bayes":
-        processed_input = preprocess_input_sentence_nb(input_sentence)
+        processed_input = preprocess_input_sentence_nb(cleaned_input)
         predicted_sentiment, sentiment_scores = predict_sentiment_best_model(processed_input, model_type)
     elif model_type == "lstm":
-        processed_input = preprocess_input_sentence(input_sentence)
-        predicted_sentiment, sentiment_scores = predict_sentiment_best_model(input_sentence, model_type)
+        predicted_sentiment, sentiment_scores = predict_sentiment_best_model(cleaned_input, model_type)
     
     return render_template('guest.html', input_text=input_sentence, sentiment=predicted_sentiment, scores=sentiment_scores, clean_text=cleaned_input)
 
+# Function to load the best model based on evaluation
+def load_best_model():
+    try:
+        nb_model, nb_accuracy = evaluate_naive_bayes_model()
+        lstm_model, lstm_accuracy = evaluate_lstm_model()
 
-scraped_files = []  # List to store scraped CSV filenames
+        if nb_accuracy > lstm_accuracy:
+            return (nb_model, None) # No tokenizer for Naive Bayes
+        else:
+            return lstm_model
+    except Exception as e:
+        print(f"Error loading the best model: {e}")
+        return None
 
-# Mendapatkan tanggal hari ini
+# Function to evaluate Naive Bayes model
+def evaluate_naive_bayes_model():
+    try:
+        cur = mysql.cursor(dictionary=True)
+        cur.execute("SELECT * FROM dataset")
+        prepro = cur.fetchall()
+        cur.close()
+
+        df = pd.DataFrame(prepro)
+
+        X = df['full_text']
+        y = df['sentiment']
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        vectorizer = TfidfVectorizer()
+        X_train_tfidf = vectorizer.fit_transform(X_train)
+        X_test_tfidf = vectorizer.transform(X_test)
+
+        model = MultinomialNB()
+        model.fit(X_train_tfidf, y_train)
+
+        y_pred = model.predict(X_test_tfidf)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        return (model, vectorizer), accuracy
+    except Exception as e:
+        print(f"Error during Naive Bayes model evaluation: {e}")
+        return None, 0
+
+def evaluate_lstm_model():
+    try:
+        cur = mysql.cursor(dictionary=True)
+        cur.execute("SELECT * FROM dataset")
+        prepro = cur.fetchall()
+        cur.close()
+
+        df = pd.DataFrame(prepro)
+
+        X = df['full_text']
+        y = df['sentiment']
+
+        tokenizer = Tokenizer(num_words=5000)
+        tokenizer.fit_on_texts(X)
+        X_seq = tokenizer.texts_to_sequences(X)
+        X_pad = pad_sequences(X_seq, maxlen=100)
+
+        if len(X_pad) != len(y):
+            raise ValueError("Found input variables with inconsistent numbers of samples: {} and {}".format(len(X_pad), len(y)))
+
+        X_train, X_test, y_train, y_test = train_test_split(X_pad, y, test_size=0.2, random_state=42)
+
+        model = load_model('model/lstm_model.h5')
+
+        y_pred = model.predict(X_test)
+        y_pred_classes = y_pred.argmax(axis=1)  # Get the index of the max logit
+        accuracy = accuracy_score(y_test, y_pred_classes)
+
+        return (model, tokenizer), accuracy
+    except Exception as e:
+        print(f"Error during LSTM model evaluation: {e}")
+        return None, 0
+
+
+    
+scraped_files = []
+
 today = datetime.now()
-
-# Mendapatkan tanggal kemarin
 yesterday = today - timedelta(days=1)
-
-# Format tanggal untuk pencarian (YYYY-MM-DD)
 since_date = yesterday.strftime('%Y-%m-%d')
 until_date = today.strftime('%Y-%m-%d')
 
+# since_date = '2024-07-01'
+# until_date = '2024-07-03'
+
 def is_scraped_today(existing_data, target_date):
-    """
-    Check if the target date already exists in the existing data.
-    """
     for row in existing_data:
         row_date = datetime.strptime(row['tgl'], '%a %b %d %H:%M:%S %z %Y')
         if row_date.date() == target_date.date():
@@ -767,224 +854,280 @@ def is_scraped_today(existing_data, target_date):
 def do_scrape():
     try:
         cur = mysql.cursor(dictionary=True)
-
-        # Periksa apakah ada data untuk tanggal kemarin
-        query = "SELECT * FROM processed_datas"
+        
+        query = "SELECT * FROM hasil_crawl WHERE created_at = (SELECT MAX(created_at) FROM hasil_crawl)"
         cur.execute(query)
         existing_data = cur.fetchall()
 
-        # Periksa apakah sudah ada data untuk tanggal kemarin
         if is_scraped_today(existing_data, yesterday):
             # Jika ada data untuk tanggal kemarin, kembalikan data tersebut dan pesan bahwa scraping sudah dilakukan
             cur.close()
             return jsonify(message="Scraping sudah dilakukan kemarin. Data yang sudah di-scrape:", data=existing_data)
         else:
-            auth_token = "0e12b16141a80c4510f95de2dcd5ef5b365b3fb3"  # Replace with actual auth token handling logic
-            limit = 10  # Example limit, adjust as needed
-            keyword = "boikot produk"  # Example keyword, adjust as needed
+            auth_token = "0e12b16141a80c4510f95de2dcd5ef5b365b3fb3"
+            limit = 100
+            keyword = "boikot produk"
 
-            # Run scraping script
             data = 'data_boikot.csv'
             search_keyword = f'{keyword} lang:id until:{until_date} since:{since_date}'
-            os.system(f'npx tweet-harvest@latest -o "{data}" -s "{search_keyword}" -l {limit} --token "{auth_token}"')
+            os.system(f'npx tweet-harvest@2.6.1 -o "{data}" -s "{search_keyword}" -l {limit} --token "{auth_token}"')
 
-            # Copy the scraped data to a static folder (example path)
             source_file = 'tweets-data/data_boikot.csv'
             destination_file = 'static/files/Data Scraping.csv'
             shutil.copyfile(source_file, destination_file)
 
-            # After scraping, perform preprocessing and labeling
-            hasil_preprocessing, hasil_labeling = preprocessing_and_labeling_twitter()
+            hasil_preprocessing = preprocessing_twitter()
 
-            # Panggil fungsi untuk menyimpan hasil ke database
-            save_to_database(cur, hasil_preprocessing)
+            if hasil_preprocessing is not None:
+                save_to_database(cur, hasil_preprocessing)
 
-            # Tutup cursor dan koneksi database
-            cur.close()
+                test_models_after_scraping()
 
-            # Prepare data for frontend
-            hasil_data = []
-            for row in hasil_preprocessing:
-                hasil_data.append({
-                    "tgl": row[0],
-                    "user": row[1],
-                    "tweet": row[2],
-                    "clean": row[3],
-                    "sentimen": row[4],
-                    "casefold": row[5],
-                    "tokenize": row[6],
-                    "stopword": row[7],
-                    "stemming": row[8]
-                })
+                major_sentiment = calculate_majority_sentiment(hasil_preprocessing)
 
-            accuracy = calculate_accuracy(hasil_preprocessing)  # Adjust based on your actual accuracy calculation
+                cur.close()
 
-            return jsonify(message="Scraping berhasil!", data=hasil_data, accuracy=accuracy)
+                hasil_data = []
+                for row in hasil_preprocessing:
+                    hasil_data.append({
+                        "tgl": row[0],
+                        "user": row[1],
+                        "tweet": row[2],
+                        "clean": row[3],
+                        "sentimen": row[4]
+                    })
+
+                accuracy = calculate_accuracy(hasil_preprocessing)
+                total_tweets = len(hasil_preprocessing)
+
+                print(f"Major sentiment after scraping: {major_sentiment}")
+
+                return jsonify(
+                    message="Scraping berhasil!",
+                    data=hasil_data,
+                    accuracy=accuracy,
+                    total_tweets=total_tweets,
+                    major_sentiment=major_sentiment
+                )
+            else:
+                cur.close()
+                print("No data to process after scraping.")
+                return jsonify(message="No data to process after scraping.")
     except Exception as e:
         print(f"Error during scraping and processing: {e}")
         return jsonify(error=str(e))
 
+
+# Function to calculate accuracy based on labels
 def calculate_accuracy(data):
-    # Example function to calculate accuracy
-    # Adjust based on your actual accuracy calculation logic
     labels_true = [row[4] for row in data]
-    labels_pred = [row[9] for row in data]  # Assuming 'row[9]' contains predicted labels
+    labels_pred = [row[4] for row in data]  # Assuming predicted labels are in the same column
     accuracy = accuracy_score(labels_true, labels_pred)
     return accuracy * 100
 
-hasil_preprocessing = []
-hasil_labeling = []
+# Function to calculate majority sentiment
+def calculate_majority_sentiment(data):
+    sentiments = [row[4] for row in data]
+    majority_sentiment = max(set(sentiments), key=sentiments.count)
+    return majority_sentiment
 
-def preprocessing_and_labeling_twitter():
+hasil_preprocessing = []
+
+# Example preprocessing function for Twitter data
+def preprocessing_twitter():
     try:
-        # Create CSV for preprocessing and labeling
         file_combined = open('static/files/Data Preprocessing Labeling.csv', 'w', newline='', encoding='utf-8')
         writer_combined = csv.writer(file_combined)
 
         hasil_preprocessing.clear()
-        hasil_labeling.clear()
-        translator = Translator()
 
         with open("static/files/Data Scraping.csv", "r", encoding='utf-8') as csvfile:
             readCSV = csv.reader(csvfile, delimiter=',')
             next(readCSV)
-            
+
             for row in readCSV:
-                if len(row) > 14:
-                    text_to_process = row[3]
-                    clean = ' '.join(re.sub(r"(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", text_to_process).split())
-                    clean = re.sub(r"\d+", "", clean)
-                    clean = re.sub(r"\b[a-zA-Z]\b", "", clean)
-                    clean = re.sub(r'\s+', ' ', clean)
-                    clean = clean.translate(clean.maketrans("", "", string.punctuation))
-                    casefold = clean.casefold()
-                    clean = re.sub(r'\bMcD\b|\bMCD\b|\bMcDonalds\b|\bMcDonald\'s\b', 'mcd', clean)
-                    clean = re.sub(r'\bKFC\b', 'kfc', clean)
-                    clean = re.sub(r'\bstarbak\b|\bStarbucks\b|\bstarbuck\b|\bsbuck\b|\bsbux\b', 'starbucks', clean)
+                if len(row) <= 14:
+                    print("Row does not have enough elements:", row)
+                    continue
 
-                    tokenizing = nltk.tokenize.word_tokenize(casefold)
+                tgl = row[1]
+                user = row[14]
+                tweet = row[3]
+                preprocessed_text = preprocess(tweet)
 
-                    stop_factory = StopWordRemoverFactory().get_stop_words()
-                    dictionary = ArrayDictionary(stop_factory)
-                    str = StopWordRemover(dictionary)
-                    stop_wr = nltk.tokenize.word_tokenize(str.remove(casefold))
-                    kalimat = ' '.join(stop_wr)
-                    factory = StemmerFactory()
-                    stemmer = factory.create_stemmer()
-                    stemming = stemmer.stem(kalimat)
-                    
-                    try:
-                        value = translator.translate(stemming, dest='en')
-                        terjemahan = value.text
-                        data_label = TextBlob(terjemahan)
-                        
-                        kata_positif = [
-                            "dukung Palestina", "dukung boikot produk", "berhenti mengonsumsi", 
-                            "berhenti membeli", "tidak akan lagi membeli", "semangat boikot", 
-                            "beralih produk lokal", "dukung boikot", "mendukung boikot",
-                            "tolak produk Israel", "mendukung boikot produk",
-                            "boikot produk Israel", "mendukung gerakan boikot",
-                            "menolak investasi Israel", "ayo boikot terus",
-                            "dukung solidaritas Palestina", "stop beli",
-                            "tolak produk zionis", "jangan lupa boikot"
-                        ]
-
-                        kata_negatif = [
-                            "dukung produk Israel", "tolak boikot",
-                            "tolak boikot Palestina","masih membeli", 
-                            "tetap mengonsumsi", "menyukai", "memakai", 
-                            "menolak boikot", "tolak boikot",
-                            "tidak setuju dengan boikot",
-                            "tolak gerakan boikot"
-                        ] 
-                        
-                        sentiment = "Netral"  
-                        
-                        if any(kata in terjemahan for kata in kata_positif):
-                            sentiment = "Positif"
-                        elif any(kata in terjemahan for kata in kata_negatif):
-                            sentiment = "Negatif"
-                        elif data_label.sentiment.polarity > 0.0:
-                            sentiment = "Positif"
-                        elif data_label.sentiment.polarity < 0.0:
-                            sentiment = "Negatif"
-                        else:
-                            sentiment = "Netral"
-
-                        row_combined = [row[1], row[14], row[3], clean, sentiment, casefold, tokenizing, stop_wr, stemming]
-                        writer_combined.writerow(row_combined)
-                        hasil_preprocessing.append(row_combined)
-                    except Exception as e:
-                        print(f"Translation and labeling error: {e}")
+                row_combined = [tgl, user, tweet, preprocessed_text]
+                hasil_preprocessing.append(row_combined)
+                writer_combined.writerow(row_combined)  # Write to CSV
 
         file_combined.close()
 
-        best_model = "lstm"  # or "naive_bayes"
-        lstm_model_path = os.path.join("model", "lstm_model.h5")
-        tokenizer_path = os.path.join("model", "tokenizer.pkl")
+        model_and_tokenizer, vectorizer_or_tokenizer = load_best_model()
 
-        if best_model == "Naive Bayes":
-            nb_model_path = os.path.abspath("model/naive_bayes_model.pkl")
-            nb_vectorizer_path = os.path.abspath("model/tfidf_vectorizer.pkl")
-            naive_bayes = joblib.load(nb_model_path)
-            vectorizer_nb = joblib.load(nb_vectorizer_path)
+        if model_and_tokenizer is not None:
+            model, vectorizer_or_tokenizer = model_and_tokenizer
+            if isinstance(model, MultinomialNB):
+                predict_with_naive_bayes(model, vectorizer_or_tokenizer)
+            else:
+                predict_with_lstm(model, vectorizer_or_tokenizer)
 
-            X_test = [row[3] for row in hasil_preprocessing]
-            X_test_vect = vectorizer_nb.transform(X_test)
-            y_pred_nb = naive_bayes.predict(X_test_vect)
+        with open("static/files/Data Preprocessing Labeling.csv", "r", encoding='utf-8') as csvfile:
+            readCSV = csv.reader(csvfile, delimiter=',')
+            for row in readCSV:
+                if len(row) >= 5:
+                    tgl = row[0]
+                    user = row[1]
+                    tweet = row[2]
+                    clean = row[3]
+                    sentimen = row[4]
+                    hasil_preprocessing.append([tgl, user, tweet, clean, sentimen])
 
-            for i in range(len(hasil_preprocessing)):
-                hasil_preprocessing[i].append(y_pred_nb[i])
-
-            with open('static/files/Hasil Preprocessing dengan Sentiment Label.csv', 'w', newline='', encoding='utf-8') as file:
-                writer = csv.writer(file)
-                writer.writerows(hasil_preprocessing)
-
-        elif best_model == "lstm":
-            model = load_model(lstm_model_path)
-            tokenizer = joblib.load(tokenizer_path)
-            max_len = 50
-            X_test = tokenizer.texts_to_sequences([row[3] for row in hasil_preprocessing])
-            X_test = pad_sequences(X_test, maxlen=max_len)
-            y_pred_lstm = model.predict(X_test)
-
-            for i in range(len(hasil_preprocessing)):
-                sentiment_label = "Negatif" if y_pred_lstm[i][0] < 0.5 else "Positif"
-                hasil_preprocessing[i].append(sentiment_label)
-
-        labels_true = [row[4] for row in hasil_preprocessing]
-        labels_pred = [row[9] for row in hasil_preprocessing]
-        accuracy = accuracy_score(labels_true, labels_pred)
-        print(f"Akurasi model: {accuracy}")
-        print(f"Confusion Matrix: {confusion_matrix(labels_true, labels_pred)}")
-
-        return hasil_preprocessing, hasil_labeling
+        return hasil_preprocessing
 
     except Exception as e:
-        print(f"Error in preprocessing and labeling: {e}")
-        return [], []
+        print(f"Error during preprocessing: {e}")
+        return None
 
+
+
+# Function to predict with Naive Bayes
+def predict_with_naive_bayes(model, vectorizer):
+    try:
+        df = pd.DataFrame(hasil_preprocessing, columns=['tgl', 'user', 'tweet', 'clean'])
+        X_tfidf = vectorizer.transform(df['clean'])
+        y_pred = model.predict(X_tfidf)
+        df['sentimen'] = y_pred
+
+        hasil_preprocessing.clear()
+        hasil_preprocessing.extend(df.values.tolist())
+
+    except Exception as e:
+        print(f"Error during Naive Bayes prediction: {e}")
+
+# Function to predict with LSTM
+def predict_with_lstm(model, tokenizer):
+    try:
+        if tokenizer is None:
+            raise ValueError("Tokenizer is not initialized.")
+
+        df = pd.DataFrame(hasil_preprocessing, columns=['tgl', 'user', 'tweet', 'clean'])
+
+        X_seq = tokenizer.texts_to_sequences(df['clean'])
+        X_pad = pad_sequences(X_seq, maxlen=100)
+
+        y_pred = model.predict(X_pad)
+        y_pred_classes = y_pred.argmax(axis=1)  
+        df['sentimen'] = y_pred_classes
+
+        hasil_preprocessing.clear()
+        hasil_preprocessing.extend(df.values.tolist())
+
+    except Exception as e:
+        print(f"Error during LSTM prediction: {e}")
+
+
+def test_models_after_scraping():
+    try:
+        # Load best model and tokenizer
+        model_and_tokenizer, vectorizer_or_tokenizer = load_best_model()
+
+        if model_and_tokenizer is not None:
+            model, vectorizer_or_tokenizer = model_and_tokenizer
+
+            # Ambil data terbaru dari database
+            cur = mysql.cursor(dictionary=True)
+            cur.execute("SELECT * FROM hasil_crawl ORDER BY created_at DESC")
+            new_data = cur.fetchall()
+            cur.close()
+
+            if not new_data:
+                raise ValueError("No new data available for testing.")
+
+            df_new = pd.DataFrame(new_data)
+            X_new = df_new['clean']
+            y_true = df_new['sentimen']
+
+            # Validasi bahwa X_new dan y_true memiliki jumlah sampel yang sama
+            if len(X_new) != len(y_true):
+                raise ValueError(f"Inconsistent sample sizes: X_new={len(X_new)}, y_true={len(y_true)}")
+
+            # Catat waktu mulai
+            start_time = time.time()
+
+            # Preprocessing for new data
+            if isinstance(model, MultinomialNB):
+                X_tfidf_new = vectorizer_or_tokenizer.transform(X_new)
+                y_pred = model.predict(X_tfidf_new)
+
+                # Evaluate performance
+                accuracy = accuracy_score(y_true, y_pred)
+                # Output akurasi dan waktu proses
+                print(f"Akurasi model pada data baru: {accuracy * 100:.2f}%")
+
+            elif isinstance(model, Sequential):  # LSTM model
+                X_seq_new = vectorizer_or_tokenizer.texts_to_sequences(X_new)
+                X_pad_new = pad_sequences(X_seq_new, maxlen=100)
+
+                # Validasi bahwa X_pad_new dan y_true memiliki jumlah sampel yang sama
+                if len(X_pad_new) != len(y_true):
+                    raise ValueError(f"Inconsistent sample sizes after padding: X_pad_new={len(X_pad_new)}, y_true={len(y_true)}")
+
+                y_pred_proba = model.predict(X_pad_new)
+                y_pred = (y_pred_proba.argmax(axis=1))  # Mengubah prediksi probabilitas ke kelas
+
+                # Evaluate performance
+                accuracy = accuracy_score(y_true, y_pred)
+                # Output akurasi dan waktu proses
+                print(f"Akurasi model LSTM pada data baru: {accuracy * 100:.2f}%")
+
+            # Catat waktu selesai dan hitung durasi
+            end_time = time.time()
+            process_time = end_time - start_time
+            print(f"Waktu proses: {process_time:.2f} detik")
+
+    except Exception as e:
+        print(f"Error during model testing after scraping: {e}")
 
 @app.route('/fetch_data_from_database', methods=['GET'])
 def fetch_data_from_database():
     try:
         cur = mysql.cursor(dictionary=True)
-        cur.execute("SELECT * FROM processed_datas")
+        cur.execute("SELECT * FROM hasil_crawl ORDER BY created_at DESC")
         processed_data = cur.fetchall()
+
+        # Ambil data terbaru berdasarkan created_at
+        query = """
+            SELECT * FROM hasil_crawl
+            WHERE created_at = (SELECT MAX(created_at) FROM hasil_crawl)
+        """
+        cur.execute(query)
+        latest_data = cur.fetchall()
         cur.close()
 
-        return jsonify(processed_data)
+        if latest_data:
+            major_sentiment = calculate_majority_sentiment(latest_data)
+            accuracy = calculate_accuracy(latest_data)
+            total_tweets = len(latest_data)
 
+            response = {
+                'data': processed_data,
+                'majoritySentiment': major_sentiment,
+                'accuracy': accuracy,
+                'totalTweets': total_tweets,
+            }
+        else:
+            response = {
+                'data': [],
+                'majoritySentiment': 'Tidak ada data',
+                'accuracy': 0,
+                'totalTweets': 0,
+            }
+
+        return jsonify(processed_data, response)
     except Exception as e:
         print(f"Error fetching data from database: {e}")
         return jsonify(error=str(e)), 500
-    
-# Fungsi untuk mendapatkan tanggal kemarin
-def get_yesterday():
-    today = datetime.now()
-    return today - timedelta(days=1)
 
-# Endpoint untuk mengambil data dari database berdasarkan rentang tanggal
+# Route to fetch data between dates
 @app.route('/fetch_data_between_dates', methods=['GET'])
 def fetch_data_between_dates():
     try:
@@ -994,48 +1137,57 @@ def fetch_data_between_dates():
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
 
-        # Misalnya, Anda dapat menggunakan range ini untuk mengambil data dari database
-        # Di sini Anda harus mengganti sesuai dengan skema database Anda
+        # Mengubah format date untuk mencocokkan dengan format di database
+        start_date_formatted = start_date.strftime('%Y-%m-%d 00:00:00')
+        end_date_formatted = end_date.strftime('%Y-%m-%d 23:59:59')
+
         cur = mysql.cursor(dictionary=True)
-        query = "SELECT * FROM processed_datas WHERE tgl BETWEEN %s AND %s"
-        cur.execute(query, (start_date, end_date))
+        query = """
+            SELECT * FROM hasil_crawl 
+            WHERE created_at BETWEEN %s AND %s
+            ORDER BY created_at DESC
+        """
+        cur.execute(query, (start_date_formatted, end_date_formatted))
         data = cur.fetchall()
         cur.close()
 
         return jsonify(data)
     except Exception as e:
-        return jsonify(error=str(e))
+        print(f"Error fetching data between dates:", e)
+        return jsonify(error=str(e)), 500
+
+
+
 
 
 def save_to_database(cur, hasil_preprocessing):
     try:
+        if not hasil_preprocessing:
+            raise ValueError("No data to save.")
+
         for row in hasil_preprocessing:
-            tgl = row[0]    # Tanggal
-            user = row[1]   # User
-            tweet = row[2]  # Tweet
-            clean = row[3]  # Cleaned text
-            sentimen = row[4]   # Sentiment
-            casefold = row[5]   # Casefold
-            tokenizing = ', '.join(row[6])   # Tokenizing
-            stopword = ', '.join(row[7])     # Stopword removal
-            stemming = row[8]   # Stemming
+            if len(row) < 5:
+                print("Row does not have enough elements:", row)
+                continue
 
-            # Query SQL untuk memasukkan data ke dalam tabel
+            tgl = row[0]
+            user = row[1]
+            tweet = row[2]
+            clean = row[3]
+            sentimen = row[4]
+
             insert_query = """
-                INSERT INTO processed_datas (
-                    tgl, user, tweet, clean, sentimen, casefold, tokenize, stopword, stemming
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO hasil_crawl (
+                    tgl, user, tweet, clean, sentimen, created_at
+                ) VALUES (%s, %s, %s, %s, %s, NOW())
             """
-            insert_values = (tgl, user, tweet, clean, sentimen, casefold, tokenizing, stopword, stemming)
+            insert_values = (tgl, user, tweet, clean, sentimen)
 
-            # Eksekusi query
             cur.execute(insert_query, insert_values)
-            # Commit perubahan ke database
             mysql.commit()
             print(f"Data berhasil disimpan di database!")
 
     except Exception as e:
-        # Rollback jika terjadi error
         mysql.rollback()
         print(f"Error saat menyimpan data: {e}")
 

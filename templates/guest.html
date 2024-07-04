@@ -7,9 +7,10 @@
         <div class="row align-items-center">
             <div class="col-lg-6 offset-lg-1 text-center">
                 <h1 class="text-white mb-4">Welcome to <span class="text-primary">Sentiment.ly!</span></h1>
-                <p class="mb-4">Sentiment.ly merupakan platform website analisis sentimen <b>boikot produk</b> yang digunakan untuk melihat informasi sentimen terkini dan melakukan cek sentimen</p>
+                <p class="mb-4">Sentiment.ly merupakan platform website analisis sentimen <b>boikot produk</b> yang
+                    digunakan untuk melihat informasi sentimen terkini dan melakukan cek sentimen</p>
                 <div class="row justify-content-center align-items-center">
-                    <h3 class="col-lg-6 text-white">Hasil Sentimen Terkini : </h3>
+                    <h3 class="col-lg-6 text-white">Hasil Sentimen Boikot : </h3>
                     <div class="col-lg-6 mb-2">
                         {% if overall_majority_sentiment == 'positif' %}
                         <div class="d-inline-block bg-success text-dark px-3 py-1 rounded">
@@ -23,11 +24,13 @@
                         <div class="d-inline-block bg-warning text-dark px-3 py-1 rounded">
                             <p class="m-0">Masyarakat <span><b>Netral</b></span></p>
                         </div>
+                        {% elif overall_majority_sentiment is none %}
+                        <div class="d-inline-block bg-secondary text-dark px-3 py-1 rounded">
+                            <p class="m-0">Tidak Ada Sentimen Terkini</p>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
-                
-
             </div>
             <div class="col-lg-5">
                 <div class="text-center">
@@ -36,8 +39,8 @@
             </div>
         </div>
     </div>
-
 </section>
+
 
 <div class="container mt-5">
     <!-- Sentimen terbanyak untuk setiap produk -->
@@ -46,7 +49,7 @@
         <div class="col">
             <div class="card mt-3 shadow">
                 <div class="card-header bg-dark">
-                    
+
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -66,7 +69,7 @@
                                         <tr>
                                             <td>
                                                 <div class="d-flex align-items-center">
-                                                    <img src="{% if product_name == 'KFC' %}/static/kfc.png{% elif product_name == 'McD' %}/static/mcd.png{% elif product_name == 'Starbucks' %}/static/sbux.png{% elif product_name == 'Burger King' %}/static/bk.png{% elif product_name == 'Aqua' %}/static/aqua.png{% elif product_name == 'Nestle' %}/static/nestle.png{% elif product_name == 'Pizza Hut' %}/static/ph.png{% elif product_name == 'Oreo' %}/static/oreo.png{% elif product_name == 'Unilever' %}/static/unv.png{% else %}/static/default.png{% endif %}"
+                                                    <img src="{% if product_name == 'kfc' %}/static/kfc.png{% elif product_name == 'mcd' %}/static/mcd.png{% elif product_name == 'starbucks' %}/static/sbux.png{% elif product_name == 'burger king' %}/static/bk.png{% elif product_name == 'aqua' %}/static/aqua.png{% elif product_name == 'nestle' %}/static/nestle.png{% elif product_name == 'pizza hut' %}/static/ph.png{% elif product_name == 'oreo' %}/static/oreo.png{% elif product_name == 'unilever' %}/static/unv.png{% else %}/static/default.png{% endif %}"
                                                         alt="{{ product_name }}"
                                                         class="img-fluid mr-3 rounded-circle border" width="50">
                                                     <span style="margin-left: 7px;">{{ product_name }}</span>
@@ -77,19 +80,19 @@
                                                 sentiment['negatif']['count'] + sentiment['netral']['count'] %}
                                                 {% if total_count > 0 %}
                                                 <div class="progress">
-                                                    <div class="progress-bar bg-success" role="progressbar"
+                                                    <div class="progress-bar bg-success text-dark" role="progressbar"
                                                         style="width: {{ (sentiment['positif']['count'] / total_count) * 100 }}%;"
                                                         aria-valuenow="{{ (sentiment['positif']['count'] / total_count) * 100 }}"
                                                         aria-valuemin="0" aria-valuemax="100">
                                                         Positif: {{ sentiment['positif']['count'] }}
                                                     </div>
-                                                    <div class="progress-bar bg-warning" role="progressbar"
+                                                    <div class="progress-bar bg-warning text-dark" role="progressbar"
                                                         style="width: {{ (sentiment['netral']['count'] / total_count) * 100 }}%;"
                                                         aria-valuenow="{{ (sentiment['netral']['count'] / total_count) * 100 }}"
                                                         aria-valuemin="0" aria-valuemax="100">
                                                         Netral: {{ sentiment['netral']['count'] }}
                                                     </div>
-                                                    <div class="progress-bar bg-danger" role="progressbar"
+                                                    <div class="progress-bar bg-danger text-dark" role="progressbar"
                                                         style="width: {{ (sentiment['negatif']['count'] / total_count) * 100 }}%;"
                                                         aria-valuenow="{{ (sentiment['negatif']['count'] / total_count) * 100 }}"
                                                         aria-valuemin="0" aria-valuemax="100">
@@ -161,7 +164,6 @@
 </div>
 
 
-
 <div class="container mt-5">
     <!-- Card pencarian dan analisis sentimen -->
     <h2 class="text-center">Check it out!</h2>
@@ -190,16 +192,31 @@
                     <p class="mt-3">
                         <b class="text-warning">3. Hasil Netral (kuning)</b> = netral,
                     </p>
-                    <p>4. Ketika memasukkan keyword, harus ada kata boikot </p>
+                    <p>4. Ketika memasukkan keyword, harus ada kata boikot atau kata kunci relevan lainnya</p>
                     <p><b>Contoh keyword :</b> mendukung boikot, tetap boikot starbucks dll</p>
                 </div>
             </div>
+            {% if alert %}
+            <div class="alert alert-danger mt-4 shadow mx-auto" role="alert" style="width: 50%;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="text-white p-2 rounded">Peringatan!</h4>
+                    <div>
+                        <i class="fas fa-exclamation-triangle fa-lg me-2"></i>
+                    </div>
+                </div>
+                <hr class="my-2">
+                <div class="p-2">
+                    <p>{{ alert }}</p>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">Cek Lagi</a>
+                </div>
+            </div>
+            {% endif %}
             {% if sentiment %}
             <div class="alert {% if sentiment == 'Positive' %}alert-success{% elif sentiment == 'Negative' %}alert-danger{% elif sentiment == 'Neutral' %}alert-warning{% endif %} mt-4 shadow mx-auto"
                 role="alert" style="width: 50%;">
                 <div class="d-flex justify-content-between align-items-center">
                     <h4
-                        class="bg {% if sentiment == 'Positive' %}bg-success{% elif sentiment == 'Negative' %}bg-danger{% elif sentiment == 'Neutral' %}bg-warning{% endif %} text-white p-2 rounded">
+                        class="bg {% if sentiment == 'Positive' %}bg-success{% elif sentiment == 'Negative' %}bg-danger{% elif sentiment == 'Neutral' %}bg-warning{% endif %} text-dark p-2 rounded">
                         Predicted Sentiment: {{ sentiment }}</h4>
                     <div>
                         <i class="fas fa-info-circle fa-lg me-2"></i>
@@ -217,7 +234,7 @@
                                 <div class="text-start">
                                     <p>Negatif: {{ scores['Negative'] }}</p>
                                     <div class="progress">
-                                        <div class="progress-bar bg-danger" role="progressbar"
+                                        <div class="progress-bar bg-danger text" role="progressbar"
                                             style="width: {{ scores['Negative'] * 100 }}%;"
                                             aria-valuenow="{{ scores['Negative'] * 100 }}" aria-valuemin="0"
                                             aria-valuemax="100"></div>
@@ -251,10 +268,9 @@
         </div>
     </div>
 </div>
-</div>
-</div>
-</div>
-</div>
+
+
+
 
 
 <!-- JavaScript libraries -->
@@ -300,10 +316,8 @@
                 if (data.prob_lstm) {
                     document.getElementById('lstm-score-cell').innerText = JSON.stringify(data.prob_lstm);
                 }
-
-                document.getElementById('sentimentTableWrapper').style.display = 'block';
             })
-            .catch((error) => {
+            .catch(error => {
                 console.error('Error:', error);
             });
     }
