@@ -39,25 +39,25 @@
                         <!-- Tampilkan tabel jika hasil_train memiliki data -->
                         <div class="table-responsive">
                             <table class="table table-striped table-bordered table-hover">
-                        <thead>
-                            <tr>
-                                <th>Best Model</th>
-                                <th>Accuracy Naive Bayes (%)</th>
-                                <th>Processing Time (Naive Bayes, sec)</th>
-                                <th>Accuracy LSTM (%)</th>
-                                <th>Processing Time (LSTM, sec)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>{{ evaluasi_train.best_model }}</td>
-                                <td>{{ evaluasi_train.acc_nb }}</td>
-                                <td>{{ evaluasi_train.processtime_nb }}</td>
-                                <td>{{ evaluasi_train.acc_lstm }}</td>
-                                <td>{{ evaluasi_train.processtime_lstm }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                                <thead>
+                                    <tr>
+                                        <th>Best Model</th>
+                                        <th>Accuracy Naive Bayes (%)</th>
+                                        <th>Processing Time (Naive Bayes, sec)</th>
+                                        <th>Accuracy LSTM (%)</th>
+                                        <th>Processing Time (LSTM, sec)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>{{ evaluasi_train.best_model }}</td>
+                                        <td>{{ evaluasi_train.acc_nb }}</td>
+                                        <td>{{ evaluasi_train.processtime_nb }}</td>
+                                        <td>{{ evaluasi_train.acc_lstm }}</td>
+                                        <td>{{ evaluasi_train.processtime_lstm }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                         {% else %}
                         <!-- Tampilkan pesan jika hasil_train kosong -->
@@ -86,12 +86,15 @@
     <form action="" method="POST" enctype="multipart/form-data">
         <div class="col-md-12">
             <label for="dataset" class="form-label">Upload Dataset</label>
-            <input type="file" class="form-control" id="file" name="file">
+            <input type="file" class="form-control" id="file" name="file" accept=".csv">
+            <small class="form-text text-muted">Only CSV files are allowed.</small>
         </div>
         <div class="col-12 mt-3">
             <button type="submit" class="btn btn-primary">Simpan Dataset</button>
         </div>
     </form>
+    
+
 
     <div class="d-flex justify-content-between align-items-center">
         <h2 class="mt-2 mb-3"></h2>
@@ -148,7 +151,8 @@
                         <input type="hidden" id="editDatasetId" name="dataset_id">
                         <div class="col-md-12">
                             <label for="editFullText" class="form-label">Tweet</label>
-                            <textarea class="form-control" id="editFullText" name="full_text" rows="3" required></textarea>
+                            <textarea class="form-control" id="editFullText" name="full_text" rows="3"
+                                required></textarea>
                         </div>
                         <div class="col-md-12">
                             <label for="editSentiment" class="form-label">Label</label>
@@ -281,42 +285,42 @@
         }
     </script>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    const backgroundColors = [
-        'rgba(75, 192, 192, 1)', // Merah dengan alpha 1, tidak transparan
-        'rgba(255, 206, 86, 1)',  // Hijau dengan alpha 1, tidak transparan
-        'rgba(255, 99, 132, 1)'   // Kuning dengan alpha 1, tidak transparan
-    ];
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const backgroundColors = [
+            'rgba(75, 192, 192, 1)', // Merah dengan alpha 1, tidak transparan
+            'rgba(255, 206, 86, 1)',  // Hijau dengan alpha 1, tidak transparan
+            'rgba(255, 99, 132, 1)'   // Kuning dengan alpha 1, tidak transparan
+        ];
 
-    const chartData = JSON.parse('{{ chart_data | tojson | safe }}');
+        const chartData = JSON.parse('{{ chart_data | tojson | safe }}');
 
-    const ctx = document.getElementById('myChart');
+        const ctx = document.getElementById('myChart');
 
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Mendukung ({{ total_positive }})', 'Netral ({{ total_neutral }})', 'Menolak ({{ total_negative }})'],
-            datasets: [{
-                label: 'of sentiment',
-                data: chartData.data,
-                borderWidth: 1,
-                backgroundColor: backgroundColors
-            }]
-        },
-        options: {
-            responsive: true, // Mengaktifkan responsif
-            maintainAspectRatio: false, // Mengabaikan aspek rasio
-            plugins: {
-                legend: {
-                    labels: {
-                        color: 'black' // Mengatur warna teks menjadi putih
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Mendukung ({{ total_positive }})', 'Netral ({{ total_neutral }})', 'Menolak ({{ total_negative }})'],
+                datasets: [{
+                    label: 'of sentiment',
+                    data: chartData.data,
+                    borderWidth: 1,
+                    backgroundColor: backgroundColors
+                }]
+            },
+            options: {
+                responsive: true, // Mengaktifkan responsif
+                maintainAspectRatio: false, // Mengabaikan aspek rasio
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'black' // Mengatur warna teks menjadi putih
+                        }
                     }
                 }
             }
-        }
-    });
-</script>
+        });
+    </script>
 
 
 

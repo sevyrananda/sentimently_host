@@ -1,0 +1,326 @@
+{% extends "layouts2.html" %}
+
+{% block content %}
+<!-- Hero section -->
+<section class="hero bg-dark text-light py-5 rounded">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6 offset-lg-1 text-center">
+                <h1 class="text-white mb-4">Welcome to <span class="text-primary">Sentiment.ly!</span></h1>
+                <p class="mb-4">Sentiment.ly merupakan platform website analisis sentimen <b>boikot produk</b> yang
+                    digunakan untuk melihat informasi sentimen terkini dan melakukan cek sentimen</p>
+                <div class="row justify-content-center align-items-center">
+                    <h3 class="col-lg-6 text-white">Hasil Sentimen Boikot : </h3>
+                    <div class="col-lg-6 mb-2">
+                        {% if overall_majority_sentiment == 'positif' %}
+                        <div class="d-inline-block bg-success text-dark px-3 py-1 rounded">
+                            <p class="m-0">Masyarakat <span><b>Mendukung Boikot</b></span></p>
+                        </div>
+                        {% elif overall_majority_sentiment == 'negatif' %}
+                        <div class="d-inline-block bg-danger text-dark px-3 py-1 rounded">
+                            <p class="m-0">Masyarakat <span><b>Menolak Boikot</b></span></p>
+                        </div>
+                        {% elif overall_majority_sentiment == 'netral' %}
+                        <div class="d-inline-block bg-warning text-dark px-3 py-1 rounded">
+                            <p class="m-0">Masyarakat <span><b>Netral</b></span></p>
+                        </div>
+                        {% elif overall_majority_sentiment is none %}
+                        <div class="d-inline-block bg-secondary text-dark px-3 py-1 rounded">
+                            <p class="m-0">Tidak Ada Sentimen Terkini</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="text-center">
+                    <img src="/static/hero1.png" class="img-fluid rounded" width="60%" alt="Hero Image">
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<div class="container mt-5">
+    <!-- Sentimen terbanyak untuk setiap produk -->
+    <h2 class="text-center">List Produk Boikot Terkini</h2>
+    <div class="row">
+        <div class="col">
+            <div class="card mt-3 shadow">
+                <div class="card-header bg-dark">
+
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col">
+                            <div class="table-responsive">
+                                <table id="produkTable" class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center">Produk</th>
+                                            <th class="text-center">Hasil Sentimen Masyarakat</th>
+                                            <th class="text-center">Kesimpulan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% if products_sentiment %}
+                                        {% for product_name, sentiment in products_sentiment.items() %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <img src="{% if product_name == 'kfc' %}/static/kfc.png{% elif product_name == 'mcd' %}/static/mcd.png{% elif product_name == 'starbucks' %}/static/sbux.png{% elif product_name == 'burger king' %}/static/bk.png{% elif product_name == 'aqua' %}/static/aqua.png{% elif product_name == 'nestle' %}/static/nestle.png{% elif product_name == 'pizza hut' %}/static/ph.png{% elif product_name == 'oreo' %}/static/oreo.png{% elif product_name == 'unilever' %}/static/unv.png{% else %}/static/default.png{% endif %}"
+                                                        alt="{{ product_name }}"
+                                                        class="img-fluid mr-3 rounded-circle border" width="50">
+                                                    <span style="margin-left: 7px;">{{ product_name }}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {% set total_count = sentiment['positif']['count'] +
+                                                sentiment['negatif']['count'] + sentiment['netral']['count'] %}
+                                                {% if total_count > 0 %}
+                                                <div class="progress">
+                                                    <div class="progress-bar bg-success text-dark" role="progressbar"
+                                                        style="width: {{ (sentiment['positif']['count'] / total_count) * 100 }}%;"
+                                                        aria-valuenow="{{ (sentiment['positif']['count'] / total_count) * 100 }}"
+                                                        aria-valuemin="0" aria-valuemax="100">
+                                                        Positif: {{ sentiment['positif']['count'] }}
+                                                    </div>
+                                                    <div class="progress-bar bg-warning text-dark" role="progressbar"
+                                                        style="width: {{ (sentiment['netral']['count'] / total_count) * 100 }}%;"
+                                                        aria-valuenow="{{ (sentiment['netral']['count'] / total_count) * 100 }}"
+                                                        aria-valuemin="0" aria-valuemax="100">
+                                                        Netral: {{ sentiment['netral']['count'] }}
+                                                    </div>
+                                                    <div class="progress-bar bg-danger text-dark" role="progressbar"
+                                                        style="width: {{ (sentiment['negatif']['count'] / total_count) * 100 }}%;"
+                                                        aria-valuenow="{{ (sentiment['negatif']['count'] / total_count) * 100 }}"
+                                                        aria-valuemin="0" aria-valuemax="100">
+                                                        Negatif: {{ sentiment['negatif']['count'] }}
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2">
+                                                    Sentimen Terbanyak:
+                                                    {% set majority_sentiment = 'positif' if
+                                                    sentiment['positif']['count'] >= sentiment['negatif']['count'] and
+                                                    sentiment['positif']['count'] >= sentiment['netral']['count'] else
+                                                    'negatif' if sentiment['negatif']['count'] >=
+                                                    sentiment['positif']['count'] and sentiment['negatif']['count'] >=
+                                                    sentiment['netral']['count'] else 'netral' %}
+                                                    {% if majority_sentiment == 'positif' %}
+                                                    <span class="text-success">Positif ({{ sentiment['positif']['count']
+                                                        }})</span>
+                                                    {% elif majority_sentiment == 'netral' %}
+                                                    <span class="text-warning">Netral ({{ sentiment['netral']['count']
+                                                        }})</span>
+                                                    {% else %}
+                                                    <span class="text-danger">Negatif ({{ sentiment['negatif']['count']
+                                                        }})</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% else %}
+                                                <div class="text-center">
+                                                    <p>Tidak ada data sentimen tersedia untuk produk ini.</p>
+                                                </div>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if majority_sentiment == 'positif' %}
+                                                <div class="d-inline-block bg-success text-dark px-3 py-1 rounded">
+                                                    <span class="label">Masyarakat Mendukung Boikot</span>
+                                                </div>
+                                                {% elif majority_sentiment == 'netral' %}
+                                                <div class="d-inline-block bg-warning text-dark px-3 py-1 rounded">
+                                                    <span class="label">Masyarakat Netral</span>
+                                                </div>
+                                                {% elif majority_sentiment == 'negatif' %}
+                                                <div class="d-inline-block bg-danger text-dark px-3 py-1 rounded">
+                                                    <span class="label">Masyarakat Menolak Boikot</span>
+                                                </div>
+                                                {% else %}
+                                                <div>
+                                                    <p>Tidak ada sentimen</p>
+                                                </div>
+                                                {% endif %}
+
+                                                {% endfor %}
+                                                {% else %}
+
+                                                <div>
+                                                    <p>Tidak ada data produk tersedia.</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="container mt-5">
+    <!-- Card pencarian dan analisis sentimen -->
+    <h2 class="text-center">Check it out!</h2>
+    <div class="card mt-3 shadow">
+        <div class="card-body shadow">
+            <div class="row">
+                <p class="text-center">Lakukan cek analisis sentimen</p>
+                <div class="col-md-8 offset-md-2">
+                    <form id="sentiment-form" action="{{ url_for('analyze') }}" method="POST"
+                        enctype="multipart/form-data" class="d-flex justify-content-center">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="cek" name="text"
+                                placeholder="Masukkan kalimat atau kata">
+                            <button type="submit" class="btn btn-success ml-2" id="cekButton">Cek</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-md-8 offset-md-2 mt-3">
+                    <h5>Catatan :</h5>
+                    <p class="mt-3">
+                        <b class="text-success">1. Hasil Positif (hijau)</b> = mendukung boikot,
+                    </p>
+                    <p class="mt-3">
+                        <b class="text-danger">2. Hasil Negatif (merah)</b> = menolak boikot,
+                    </p>
+                    <p class="mt-3">
+                        <b class="text-warning">3. Hasil Netral (kuning)</b> = netral,
+                    </p>
+                    <p>4. Ketika memasukkan keyword, harus ada kata boikot atau kata kunci relevan lainnya</p>
+                    <p><b>Contoh keyword :</b> mendukung boikot, tetap boikot starbucks dll</p>
+                </div>
+            </div>
+            {% if alert %}
+            <div class="alert alert-danger mt-4 shadow mx-auto" role="alert" style="width: 50%;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="text-white p-2 rounded">Peringatan!</h4>
+                    <div>
+                        <i class="fas fa-exclamation-triangle fa-lg me-2"></i>
+                    </div>
+                </div>
+                <hr class="my-2">
+                <div class="p-2">
+                    <p>{{ alert }}</p>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">Cek Lagi</a>
+                </div>
+            </div>
+            {% endif %}
+            {% if sentiment %}
+            <div class="alert {% if sentiment == 'Positive' %}alert-success{% elif sentiment == 'Negative' %}alert-danger{% elif sentiment == 'Neutral' %}alert-warning{% endif %} mt-4 shadow mx-auto"
+                role="alert" style="width: 50%;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4
+                        class="bg {% if sentiment == 'Positive' %}bg-success{% elif sentiment == 'Negative' %}bg-danger{% elif sentiment == 'Neutral' %}bg-warning{% endif %} text-dark p-2 rounded">
+                        Predicted Sentiment: {{ sentiment }}</h4>
+                    <div>
+                        <i class="fas fa-info-circle fa-lg me-2"></i>
+                    </div>
+                </div>
+                <hr class="my-2">
+                <div class="p-2">
+                    <p><strong>Input Text:</strong> {{ input_text }}</p>
+                    <p><strong>Clean Text:</strong> {{ clean_text }}</p>
+                    {% if scores %}
+                    <div class="row">
+                        <div class="col">
+                            <p><strong>Sentiment Scores:</strong></p>
+                            <div class="d-flex justify-content-between">
+                                <div class="text-start">
+                                    <p>Negatif: {{ scores['Negative'] }}</p>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-danger text" role="progressbar"
+                                            style="width: {{ scores['Negative'] * 100 }}%;"
+                                            aria-valuenow="{{ scores['Negative'] * 100 }}" aria-valuemin="0"
+                                            aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <p>Netral: {{ scores['Neutral'] }}</p>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-warning" role="progressbar"
+                                            style="width: {{ scores['Neutral'] * 100 }}%;"
+                                            aria-valuenow="{{ scores['Neutral'] * 100 }}" aria-valuemin="0"
+                                            aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <p>Positif: {{ scores['Positive'] }}</p>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-success" role="progressbar"
+                                            style="width: {{ scores['Positive'] * 100 }}%;"
+                                            aria-valuenow="{{ scores['Positive'] * 100 }}" aria-valuemin="0"
+                                            aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+
+
+
+
+<!-- JavaScript libraries -->
+<script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/2.0.2/js/dataTables.js"></script>
+<script src="https://cdn.datatables.net/2.0.2/js/dataTables.bootstrap5.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    $(document).ready(function () {
+        $('#produkTable').DataTable();
+    });
+
+    document.getElementById('cekButton').addEventListener('click', function () {
+        var sentimentTableWrapper = document.getElementById('sentimentTableWrapper');
+        sentimentTableWrapper.style.display = 'block';
+    });
+
+    function analyzeText() {
+        var text = document.getElementById('text-input').value;
+
+        fetch('/analyze', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                text: text
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('text-display').innerText = 'Text: ' + data.text;
+
+                // Update the table with sentiment analysis results
+                document.getElementById('tweet-cell').innerText = data.text;
+                document.getElementById('nb-sentiment-cell').innerText = data.sentiment_nb;
+                if (data.prob_nb) {
+                    document.getElementById('nb-score-cell').innerText = JSON.stringify(data.prob_nb);
+                }
+                document.getElementById('lstm-sentiment-cell').innerText = data.sentiment_lstm;
+                if (data.prob_lstm) {
+                    document.getElementById('lstm-score-cell').innerText = JSON.stringify(data.prob_lstm);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+    }
+</script>
+
+{% endblock %}

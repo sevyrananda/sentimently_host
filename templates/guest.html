@@ -4,53 +4,115 @@
 <!-- Hero section -->
 <section class="hero bg-dark text-light py-5 rounded">
     <div class="container">
-        <div class="row align-items-center">
-            <div class="col-lg-6 offset-lg-1 text-center">
-                <h1 class="text-white mb-4">Welcome to <span class="text-primary">Sentiment.ly!</span></h1>
-                <p class="mb-4">Sentiment.ly merupakan platform website analisis sentimen <b>boikot produk</b> yang
-                    digunakan untuk melihat informasi sentimen terkini dan melakukan cek sentimen</p>
-                <div class="row justify-content-center align-items-center">
-                    <h3 class="col-lg-6 text-white">Hasil Sentimen Boikot : </h3>
-                    <div class="col-lg-6 mb-2">
-                        {% if overall_majority_sentiment == 'positif' %}
-                        <div class="d-inline-block bg-success text-dark px-3 py-1 rounded">
-                            <p class="m-0">Masyarakat <span><b>Mendukung Boikot</b></span></p>
+        <div class="row align-items-center text-center text-lg-start">
+            <div class="col-lg-6 offset-lg-1">
+                <h1 class="text-white mb-4">
+                    Welcome to <span class="text-primary">Sentiment.ly!</span>
+                </h1>
+                <p class="mb-4">
+                    Sentiment.ly adalah platform analisis sentimen dari Twitter atau X berdasarkan keyword
+                    yang dapat digunakan untuk melihat informasi sentimen terkini dan melakukan cek sentimen.
+                </p>
+                <div class="mb-4">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <h3 class="text-white mb-3">Hasil Sentimen {% for keyword in keywords %}
+                                <u><b>{{ keyword }}</b></u>
+                                {% endfor %} :
+                            </h3>
                         </div>
-                        {% elif overall_majority_sentiment == 'negatif' %}
-                        <div class="d-inline-block bg-danger text-dark px-3 py-1 rounded">
-                            <p class="m-0">Masyarakat <span><b>Menolak Boikot</b></span></p>
+                        <div class="col">
+                            <div class="d-inline-block">
+                                {% if overall_majority_sentiment == 'positif' %}
+                                <div class="bg-success text-dark px-4 py-2 rounded">
+                                    <p class="m-0"><b>Positif</b> (Mendukung)
+                                    </p>
+                                </div>
+                                {% elif overall_majority_sentiment == 'negatif' %}
+                                <div class="bg-danger text-dark px-4 py-2 rounded">
+                                    <p class="m-0"><b>Negatif</b> (Menolak)</p>
+                                </div>
+                                {% elif overall_majority_sentiment == 'netral' %}
+                                <div class="bg-warning text-dark px-4 py-2 rounded">
+                                    <p class="m-0"><b>Netral</b></p>
+                                </div>
+                                {% elif overall_majority_sentiment is none %}
+                                <div class="bg-secondary text-dark px-4 py-2 rounded">
+                                    <p class="m-0">Tidak Ada Sentimen Terkini</p>
+                                </div>
+                                {% endif %}
+                            </div>
                         </div>
-                        {% elif overall_majority_sentiment == 'netral' %}
-                        <div class="d-inline-block bg-warning text-dark px-3 py-1 rounded">
-                            <p class="m-0">Masyarakat <span><b>Netral</b></span></p>
-                        </div>
-                        {% elif overall_majority_sentiment is none %}
-                        <div class="d-inline-block bg-secondary text-dark px-3 py-1 rounded">
-                            <p class="m-0">Tidak Ada Sentimen Terkini</p>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
+
+                <div class="mt-4">
+                    <p class="text-white">
+                        <strong>Kesimpulan:</strong>
+                        {% if overall_majority_sentiment == 'positif' %}
+                        Berdasarkan analisis, masyarakat cenderung <b>mendukung</b> terhadap {% for keyword in keywords %}
+                        <u>{{ keyword }}</u>
+                        {% endfor %}. Ini menunjukkan adanya dukungan atau setuju terhadap topik tersebut.
+                        {% elif overall_majority_sentiment == 'negatif' %}
+                        Berdasarkan analisis, masyarakat cenderung <b>menolak</b> terhadap {% for keyword in keywords %}
+                        <u>{{ keyword }}</u>
+                        {% endfor %}. Ini menunjukkan adanya penolakan, kritik, atau keluhan mengenai topik tersebut.
+                        {% elif overall_majority_sentiment == 'netral' %}
+                        Berdasarkan analisis, sentimen masyarakat terhadap {% for keyword in keywords %}
+                        <u>{{ keyword }}</u>
+                        {% endfor %} cenderung <b>netral</b>. Ini menunjukkan bahwa tweet yang ada tidak menunjukkan
+                        sikap yang jelas atau terkesan informatif saja.
+                        {% elif overall_majority_sentiment is none %}
+                        Saat ini, tidak ada data sentimen terkini yang dapat disimpulkan.
+                        {% endif %}
+                    </p>
+                </div>
+                <p class="text-warning"><small>Catatan: Interpretasi sentimen dapat bervariasi tergantung pada konteks
+                        dan nada dari tweet yang dianalisis.</small></p>
+                <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#sentimentModal">Apa Itu
+                    Analisis Sentimen?</button>
             </div>
-            <div class="col-lg-5">
-                <div class="text-center">
-                    <img src="/static/hero1.png" class="img-fluid rounded" width="60%" alt="Hero Image">
+            <div class="col-lg-5 text-center text-lg-start">
+                <img src="/static/hero1.png" class="img-fluid rounded mb-4 mb-lg-0" width="80%" alt="Hero Image">
+            </div>
+        </div>
+        <!-- Modal -->
+        <div class="modal fade" id="sentimentModal" tabindex="-1" aria-labelledby="sentimentModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="sentimentModalLabel">Apa Itu Analisis Sentimen?</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-dark">
+                        Analisis sentimen adalah proses untuk menentukan sikap penulis terhadap suatu topik, produk,
+                        atau layanan. Sikap ini bisa:
+                        <ul class="list-unstyled mt-2">
+                            <li><strong><i class="bi bi-emoji-smile"></i> Sentimen Positif:</strong> Kepuasan, pujian,
+                                atau dukungan terhadap topik.</li>
+                            <li><strong><i class="bi bi-emoji-frown"></i> Sentimen Negatif:</strong> Kritik, keluhan,
+                                atau penolakan terhadap topik.</li>
+                            <li><strong><i class="bi bi-emoji-neutral"></i> Sentimen Netral:</strong> Informasi tanpa
+                                ekspresi emosional atau pendapat.</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+    <!-- Bootstrap JS Bundle (dengan Popper.js) -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 </section>
 
-
+{% if 'boikot produk' in keywords %}
+<!-- List Produk Section -->
 <div class="container mt-5">
-    <!-- Sentimen terbanyak untuk setiap produk -->
     <h2 class="text-center">List Produk Boikot Terkini</h2>
     <div class="row">
         <div class="col">
             <div class="card mt-3 shadow">
-                <div class="card-header bg-dark">
-
-                </div>
+                <div class="card-header bg-dark"></div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col">
@@ -99,57 +161,39 @@
                                                         Negatif: {{ sentiment['negatif']['count'] }}
                                                     </div>
                                                 </div>
-                                                <div class="mt-2">
-                                                    Sentimen Terbanyak:
-                                                    {% set majority_sentiment = 'positif' if
-                                                    sentiment['positif']['count'] >= sentiment['negatif']['count'] and
-                                                    sentiment['positif']['count'] >= sentiment['netral']['count'] else
-                                                    'negatif' if sentiment['negatif']['count'] >=
-                                                    sentiment['positif']['count'] and sentiment['negatif']['count'] >=
-                                                    sentiment['netral']['count'] else 'netral' %}
-                                                    {% if majority_sentiment == 'positif' %}
-                                                    <span class="text-success">Positif ({{ sentiment['positif']['count']
-                                                        }})</span>
-                                                    {% elif majority_sentiment == 'netral' %}
-                                                    <span class="text-warning">Netral ({{ sentiment['netral']['count']
-                                                        }})</span>
-                                                    {% else %}
-                                                    <span class="text-danger">Negatif ({{ sentiment['negatif']['count']
-                                                        }})</span>
-                                                    {% endif %}
-                                                </div>
                                                 {% else %}
-                                                <div class="text-center">
-                                                    <p>Tidak ada data sentimen tersedia untuk produk ini.</p>
+                                                <div class="progress">
+                                                    <div class="progress-bar bg-secondary text-dark" role="progressbar"
+                                                        style="width: 100%;" aria-valuenow="100" aria-valuemin="0"
+                                                        aria-valuemax="100">
+                                                        Tidak Ada Data Sentimen
+                                                    </div>
                                                 </div>
                                                 {% endif %}
                                             </td>
                                             <td>
-                                                {% if majority_sentiment == 'positif' %}
-                                                <div class="d-inline-block bg-success text-dark px-3 py-1 rounded">
-                                                    <span class="label">Masyarakat Mendukung Boikot</span>
-                                                </div>
-                                                {% elif majority_sentiment == 'netral' %}
-                                                <div class="d-inline-block bg-warning text-dark px-3 py-1 rounded">
-                                                    <span class="label">Masyarakat Netral</span>
-                                                </div>
-                                                {% elif majority_sentiment == 'negatif' %}
-                                                <div class="d-inline-block bg-danger text-dark px-3 py-1 rounded">
-                                                    <span class="label">Masyarakat Menolak Boikot</span>
-                                                </div>
-                                                {% else %}
-                                                <div>
-                                                    <p>Tidak ada sentimen</p>
-                                                </div>
-                                                {% endif %}
-
-                                                {% endfor %}
-                                                {% else %}
-
-                                                <div>
-                                                    <p>Tidak ada data produk tersedia.</p>
-                                                </div>
+                                                <p>
+                                                    {% if sentiment['positif']['count'] > sentiment['negatif']['count']
+                                                    and sentiment['positif']['count'] > sentiment['netral']['count'] %}
+                                                    Berdasarkan hasil analisis, Masyarakat sebagian besar : <b>Mendukung</b>
+                                                    {% elif sentiment['negatif']['count'] >
+                                                    sentiment['positif']['count'] and sentiment['negatif']['count'] >
+                                                    sentiment['netral']['count'] %}
+                                                    Berdasarkan hasil analisis, Masyarakat sebagian besar : <b>Menolak</b>
+                                                    {% elif sentiment['netral']['count'] >
+                                                    sentiment['positif']['count'] and sentiment['netral']['count'] >
+                                                    sentiment['negatif']['count'] %}
+                                                    Berdasarkan hasil analisis, Masyarakat sebagian besar : <b>Netral</b>
+                                                    {% else %}
+                                                    Mayoritas Sentimen: <b>Tidak Ada Sentimen Mayoritas</b>
+                                                    {% endif %}
+                                                </p>
                                             </td>
+                                        </tr>
+                                        {% endfor %}
+                                        {% else %}
+                                        <tr>
+                                            <td colspan="3" class="text-center">Tidak ada data produk</td>
                                         </tr>
                                         {% endif %}
                                     </tbody>
@@ -158,11 +202,31 @@
                         </div>
                     </div>
                 </div>
+                <div class="card-footer bg-dark"></div>
             </div>
         </div>
     </div>
 </div>
 
+{% else %}
+<!-- Word Cloud Section -->
+<div class="container mt-5">
+    <h2 class="text-center">Word Cloud</h2>
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card mt-3 shadow">
+                <div class="card-header bg-dark"></div>
+                <div class="card-body">
+                    <p class="mt-2 text-center">Word Cloud merupakan visualisasi sentimen analisis berdasarkan kata-kata yang paling sering muncul dalam tweet yang
+                        dianalisis. Ukuran kata mencerminkan frekuensi kemunculannya.</p>
+                    <img id="wordCloudImage" src="{{ url_for('word_cloud_image') }}" alt="Word Cloud"
+                        class="img-fluid mt-4">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <div class="container mt-5">
     <!-- Card pencarian dan analisis sentimen -->
@@ -184,16 +248,19 @@
                 <div class="col-md-8 offset-md-2 mt-3">
                     <h5>Catatan :</h5>
                     <p class="mt-3">
-                        <b class="text-success">1. Hasil Positif (hijau)</b> = mendukung boikot,
+                        <b class="text-success">1. Hasil Positif (hijau)</b> = Kepuasan, pujian, atau dukungan terhadap
+                        topik.
                     </p>
                     <p class="mt-3">
-                        <b class="text-danger">2. Hasil Negatif (merah)</b> = menolak boikot,
+                        <b class="text-danger">2. Hasil Negatif (merah)</b> = Kritik, keluhan, atau penolakan terhadap
+                        topik.
                     </p>
                     <p class="mt-3">
-                        <b class="text-warning">3. Hasil Netral (kuning)</b> = netral,
+                        <b class="text-warning">3. Hasil Netral (kuning)</b> = Informasi tanpa ekspresi emosional atau
+                        pendapat.
                     </p>
                     <p>4. Ketika memasukkan keyword, harus ada kata boikot atau kata kunci relevan lainnya</p>
-                    <p><b>Contoh keyword :</b> mendukung boikot, tetap boikot starbucks dll</p>
+                    <p><b>Contoh keyword :</b> mendukung boikot, tetap boikot starbucks, dll</p>
                 </div>
             </div>
             {% if alert %}

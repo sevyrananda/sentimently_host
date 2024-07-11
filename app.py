@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file 
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import mysql.connector
 import os, re, csv, string
@@ -32,6 +32,12 @@ import shutil
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import pipeline
+import torch
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+import io
 
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -49,7 +55,7 @@ db_config = {
     'host': 'localhost',
     'user': 'root',
     'password': '',
-    'database': 'sentimently'
+    'database': 'new_sentimently'
 }
 
 # Membuat koneksi
@@ -95,15 +101,21 @@ def get_sentiment_data(products_to_analyze):
     negative_products = {}
     positive_products = {}
     neutral_products = {}
+    keywords = set()  # Set untuk menyimpan semua keyword unik
 
     cur = mysql.cursor(dictionary=True)
-    query = "SELECT tweet, sentimen FROM hasil_crawl"
+    query = "SELECT tweet, sentimen, keyword FROM hasil_crawl"
     cur.execute(query)
 
-    for row in cur.fetchall():
+    rows = cur.fetchall()
+    print(f"Rows fetched from database: {rows}")  # Tambahkan logging
+
+    for row in rows:
         tweet = row['tweet']
         sentimen = row['sentimen']
-        
+        keyword = row['keyword']
+        keywords.add(keyword)  # Tambahkan keyword ke set
+
         for product in products_to_analyze:
             product_name = product['name']
 
@@ -123,9 +135,34 @@ def get_sentiment_data(products_to_analyze):
                         neutral_products[product_name] += 1
                     else:
                         neutral_products[product_name] = 1
+
+    print(f"Negative products: {negative_products}")  # Tambahkan logging
+    print(f"Positive products: {positive_products}")  # Tambahkan logging
+    print(f"Neutral products: {neutral_products}")    # Tambahkan logging
     
     cur.close()
-    return negative_products, positive_products, neutral_products
+    return negative_products, positive_products, neutral_products, keywords
+
+def get_overall_sentiment():
+    sentiment_counts = {"positif": 0, "negatif": 0, "netral": 0}
+    
+    cur = mysql.cursor(dictionary=True)
+    query = "SELECT sentimen FROM hasil_crawl"
+    cur.execute(query)
+    
+    for row in cur.fetchall():
+        sentimen = row['sentimen']
+        if sentimen.lower() in sentiment_counts:
+            sentiment_counts[sentimen.lower()] += 1
+
+    cur.close()
+    
+    if all(count == 0 for count in sentiment_counts.values()):
+        overall_majority_sentiment = None
+    else:
+        overall_majority_sentiment = max(sentiment_counts, key=sentiment_counts.get)
+
+    return overall_majority_sentiment
 
 @app.route('/guest')
 def guest():
@@ -141,7 +178,7 @@ def guest():
         {"name": "unilever", "image": "/static/unv.png"},
     ]
 
-    negative_products, positive_products, neutral_products = get_sentiment_data(products_to_analyze)
+    negative_products, positive_products, neutral_products, keywords = get_sentiment_data(products_to_analyze)
 
     products_sentiment = {}
     for product in products_to_analyze:
@@ -164,20 +201,13 @@ def guest():
         
         products_sentiment[product_name] = product_sentiment
 
+    print(f"Products sentiment: {products_sentiment}")  # Tambahkan logging
+
     sorted_products_sentiment = dict(sorted(products_sentiment.items(), 
                                             key=lambda item: (item[1]['positif']['count'], item[1]['netral']['count'], item[1]['negatif']['count']), 
                                             reverse=True))
 
-    sentiment_counts = {
-        "positif": sum(positive_products.values()),
-        "negatif": sum(negative_products.values()),
-        "netral": sum(neutral_products.values())
-    }
-
-    if all(count == 0 for count in sentiment_counts.values()):
-        overall_majority_sentiment = None
-    else:
-        overall_majority_sentiment = max(sentiment_counts, key=sentiment_counts.get)
+    overall_majority_sentiment = get_overall_sentiment()
 
     # Log overall majority sentiment
     print(f"Overall majority sentiment: {overall_majority_sentiment}")
@@ -187,13 +217,47 @@ def guest():
     users = cur.fetchall()
     cur.close()
 
+    # Buat word cloud untuk halaman guest
+    wordcloud = generate_word_cloud()
+
     return render_template('guest.html', 
                            products_sentiment=sorted_products_sentiment,
                            overall_majority_sentiment=overall_majority_sentiment,
-                           users=users)
+                           keywords=keywords,
+                           users=users,
+                           wordcloud_image=wordcloud)
 
 
 
+def generate_word_cloud():
+    # Ambil data tweet dari database
+    cur = mysql.cursor(dictionary=True)
+    query = "SELECT tweet FROM hasil_crawl"
+    cur.execute(query)
+    tweets = [row['tweet'] for row in cur.fetchall()]
+    cur.close()
+    
+    if not tweets:  # Jika tidak ada tweet, return gambar default atau pesan
+        print("No tweets available for word cloud.")
+        return None
+    
+    # Gabungkan semua tweet menjadi satu string
+    tweets_text = ' '.join(tweets)
+    
+    # Buat word cloud
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(tweets_text)
+    
+    # Simpan word cloud ke buffer
+    img = io.BytesIO()
+    wordcloud.to_image().save(img, format='PNG')
+    img.seek(0)
+    
+    return img
+
+@app.route('/word_cloud_image')
+def word_cloud_image():
+    img = generate_word_cloud()
+    return send_file(img, mimetype='image/png')
 
 
 # ADMIN
@@ -290,7 +354,12 @@ def scraping():
     processed_data = cur.fetchall()
 
     cur.close()
-    return render_template('scraping.html', users=users, processed_data=processed_data)
+
+    today = datetime.now()
+    yesterday = today - timedelta(days=1)
+    yesterday_date = yesterday.strftime('%Y-%m-%d')
+    today_date = today.strftime('%Y-%m-%d')
+    return render_template('scraping.html', users=users, processed_data=processed_data, yesterday_date=yesterday_date, today_date=today_date)
 
 @app.route('/save_data', methods=['POST'])
 @login_required
@@ -357,6 +426,9 @@ def dataset():
 def uploadFiles():
     uploaded_file = request.files['file']
     if uploaded_file.filename != '':
+        if not uploaded_file.filename.endswith('.csv'):
+            flash('Only CSV files are allowed!', 'danger')  # Flash error message
+            return redirect(url_for("dataset"))
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_file.filename)
         uploaded_file.save(file_path)
         parseCSV(file_path)
@@ -367,15 +439,42 @@ def uploadFiles():
         return response
     return redirect(url_for("dataset"))
 
+# Load pre-trained BERT model for sentiment analysis
+model_name = "ayameRushia/bert-base-indonesian-1.5G-sentiment-analysis-smsa"
+tokenizer = BertTokenizer.from_pretrained(model_name)
+model = BertForSequenceClassification.from_pretrained(model_name)
+
+# Create sentiment analysis pipeline
+sentiment_analyzer = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer, framework='pt')
+
 def parseCSV(filePath):
-    col_names = ['full_text', 'sentiment']
-    csvData = pd.read_csv(filePath, names=col_names, header=None)
+    col_names = ['full_text']
+    csvData = pd.read_csv(filePath, usecols=col_names)  # Only read 'full_text' column
     for i, row in csvData.iterrows():
+        full_text = row['full_text']
+        
+        # Perform sentiment analysis
+        sentiment_result = sentiment_analyzer(full_text)[0]
+        sentiment = sentiment_result['label']
+        
+        # Print sentiment for debugging
+        print(f"Original sentiment label: {sentiment}")
+        
+        # Map sentiment labels to desired format
+        if sentiment == 'Negative':
+            sentiment = 'negatif'
+        elif sentiment == 'Neutral':
+            sentiment = 'netral'
+        elif sentiment == 'Positive':
+            sentiment = 'positif'
+        
+        # Insert into database
         sql = "INSERT INTO dataset (full_text, sentiment) VALUES (%s, %s)"
-        value = (row['full_text'], row['sentiment'])
+        value = (full_text, sentiment)
         cur = mysql.cursor()
         cur.execute(sql, value)
         mysql.commit()
+
 
 @app.route('/train', methods=['POST'])
 def train():
@@ -854,32 +953,43 @@ def is_scraped_today(existing_data, target_date):
 def do_scrape():
     try:
         cur = mysql.cursor(dictionary=True)
-        
-        query = "SELECT * FROM hasil_crawl WHERE created_at = (SELECT MAX(created_at) FROM hasil_crawl)"
-        cur.execute(query)
-        existing_data = cur.fetchall()
 
-        if is_scraped_today(existing_data, yesterday):
-            # Jika ada data untuk tanggal kemarin, kembalikan data tersebut dan pesan bahwa scraping sudah dilakukan
-            cur.close()
-            return jsonify(message="Scraping sudah dilakukan kemarin. Data yang sudah di-scrape:", data=existing_data)
+        # Get the request JSON data
+        request_data = request.get_json()
+        since_date = request_data.get('since_date', yesterday.strftime('%Y-%m-%d'))
+        until_date = request_data.get('until_date', today.strftime('%Y-%m-%d'))
+        keyword = request_data.get('keyword', 'boikot produk')
+        scrape_type = request_data.get('scrape_type', 'predict')  # Default to 'predict'
+
+        if scrape_type == 'predict':
+            query = "SELECT * FROM hasil_crawl WHERE created_at = (SELECT MAX(created_at) FROM hasil_crawl)"
+            cur.execute(query)
+            existing_data = cur.fetchall()
+
+            if is_scraped_today(existing_data, yesterday):
+                cur.close()
+                return jsonify(message="Crawling sudah dilakukan. Data yang sudah di-crawl:", data=existing_data)
+    
+        auth_token = "0e12b16141a80c4510f95de2dcd5ef5b365b3fb3"
+        limit = 100
+        search_keyword = f'{keyword} lang:id until:{until_date} since:{since_date}'
+
+        data = 'data_boikot.csv'
+        os.system(f'npx tweet-harvest@2.6.1 -o "{data}" -s "{search_keyword}" -l {limit} --token "{auth_token}"')
+
+        source_file = 'tweets-data/data_boikot.csv'
+        if scrape_type == 'csv':
+            destination_file = 'static/files/Dataset_train.csv'
+            shutil.copyfile(source_file, destination_file)
+            return jsonify(message="Crawling berhasil dan data disimpan sebagai CSV.", data=[])
         else:
-            auth_token = "0e12b16141a80c4510f95de2dcd5ef5b365b3fb3"
-            limit = 100
-            keyword = "boikot produk"
-
-            data = 'data_boikot.csv'
-            search_keyword = f'{keyword} lang:id until:{until_date} since:{since_date}'
-            os.system(f'npx tweet-harvest@2.6.1 -o "{data}" -s "{search_keyword}" -l {limit} --token "{auth_token}"')
-
-            source_file = 'tweets-data/data_boikot.csv'
             destination_file = 'static/files/Data Scraping.csv'
             shutil.copyfile(source_file, destination_file)
 
             hasil_preprocessing = preprocessing_twitter()
 
             if hasil_preprocessing is not None:
-                save_to_database(cur, hasil_preprocessing)
+                save_to_database(cur, hasil_preprocessing, keyword)
 
                 test_models_after_scraping()
 
@@ -894,16 +1004,17 @@ def do_scrape():
                         "user": row[1],
                         "tweet": row[2],
                         "clean": row[3],
-                        "sentimen": row[4]
+                        "sentimen": row[4],
+                        "keyword": keyword
                     })
 
                 accuracy = calculate_accuracy(hasil_preprocessing)
                 total_tweets = len(hasil_preprocessing)
 
-                print(f"Major sentiment after scraping: {major_sentiment}")
+                print(f"Major sentiment after crawling: {major_sentiment}")
 
                 return jsonify(
-                    message="Scraping berhasil!",
+                    message="Crawling berhasil!",
                     data=hasil_data,
                     accuracy=accuracy,
                     total_tweets=total_tweets,
@@ -911,11 +1022,12 @@ def do_scrape():
                 )
             else:
                 cur.close()
-                print("No data to process after scraping.")
-                return jsonify(message="No data to process after scraping.")
+                print("No data to process after crawling.")
+                return jsonify(message="No data to process after crawling.", data=[])
+
     except Exception as e:
-        print(f"Error during scraping and processing: {e}")
-        return jsonify(error=str(e))
+        print(f"Error during crawling and processing: {e}")
+        return jsonify(error=str(e), data=[])
 
 
 # Function to calculate accuracy based on labels
@@ -933,7 +1045,6 @@ def calculate_majority_sentiment(data):
 
 hasil_preprocessing = []
 
-# Example preprocessing function for Twitter data
 def preprocessing_twitter():
     try:
         file_combined = open('static/files/Data Preprocessing Labeling.csv', 'w', newline='', encoding='utf-8')
@@ -1085,7 +1196,7 @@ def test_models_after_scraping():
             print(f"Waktu proses: {process_time:.2f} detik")
 
     except Exception as e:
-        print(f"Error during model testing after scraping: {e}")
+        print(f"Error during model testing after crawling: {e}")
 
 @app.route('/fetch_data_from_database', methods=['GET'])
 def fetch_data_from_database():
@@ -1094,7 +1205,6 @@ def fetch_data_from_database():
         cur.execute("SELECT * FROM hasil_crawl ORDER BY created_at DESC")
         processed_data = cur.fetchall()
 
-        # Ambil data terbaru berdasarkan created_at
         query = """
             SELECT * FROM hasil_crawl
             WHERE created_at = (SELECT MAX(created_at) FROM hasil_crawl)
@@ -1122,10 +1232,11 @@ def fetch_data_from_database():
                 'totalTweets': 0,
             }
 
-        return jsonify(processed_data, response)
+        return jsonify(response)
     except Exception as e:
         print(f"Error fetching data from database: {e}")
         return jsonify(error=str(e)), 500
+
 
 # Route to fetch data between dates
 @app.route('/fetch_data_between_dates', methods=['GET'])
@@ -1157,10 +1268,7 @@ def fetch_data_between_dates():
         return jsonify(error=str(e)), 500
 
 
-
-
-
-def save_to_database(cur, hasil_preprocessing):
+def save_to_database(cur, hasil_preprocessing, keyword):
     try:
         if not hasil_preprocessing:
             raise ValueError("No data to save.")
@@ -1176,16 +1284,29 @@ def save_to_database(cur, hasil_preprocessing):
             clean = row[3]
             sentimen = row[4]
 
-            insert_query = """
-                INSERT INTO hasil_crawl (
-                    tgl, user, tweet, clean, sentimen, created_at
-                ) VALUES (%s, %s, %s, %s, %s, NOW())
+            # Cek apakah tweet sudah ada di database
+            check_query = """
+                SELECT COUNT(*) as count FROM hasil_crawl 
+                WHERE tgl = %s AND user = %s AND tweet = %s
             """
-            insert_values = (tgl, user, tweet, clean, sentimen)
+            check_values = (tgl, user, tweet)
+            cur.execute(check_query, check_values)
+            result = cur.fetchone()
 
-            cur.execute(insert_query, insert_values)
-            mysql.commit()
-            print(f"Data berhasil disimpan di database!")
+            if result['count'] == 0:
+                # Hanya menyimpan jika tweet belum ada di database
+                insert_query = """
+                    INSERT INTO hasil_crawl (
+                        tgl, user, tweet, clean, sentimen, keyword, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                """
+                insert_values = (tgl, user, tweet, clean, sentimen, keyword)
+
+                cur.execute(insert_query, insert_values)
+                mysql.commit()
+                print(f"Data berhasil disimpan di database!")
+            else:
+                print(f"Tweet sudah ada di database, tidak disimpan ulang: {tweet}")
 
     except Exception as e:
         mysql.rollback()

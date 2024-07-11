@@ -1,20 +1,65 @@
 {% extends "layouts.html" %}
 
 {% block content %}
-<div class="container">
-    <h2>Crawling Data</h2>
+<div class="container mt-5">
     <div class="row">
         <div class="col">
-            <div class="card mt-5">
+            <div class="card">
                 <div class="card-header bg-primary d-flex justify-content-between align-items-center">
-                    <h2 class="mt-1 text-white">Twitter Data Crawling</h2>
+                    <h2 class="text-white">Twitter Data Crawling</h2>
                     <div class="form-check form-switch form-switch-lg">
                         <input class="form-check-input" type="checkbox" id="scrapeToggle"
                             style="transform: scale(1.5);">
-                        <label class="form-check-label text-white ms-2" for="scrapeToggle">Aktifkan Crawling</label>
+                        <label class="form-check-label text-white ms-2" for="scrapeToggle">Aktifkan Scraping</label>
                     </div>
                 </div>
                 <div class="card-body">
+                    <form id="scrapingForm" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="sinceDate" class="form-label">Sejak Tanggal</label>
+                            <input type="date" id="sinceDate" name="since_date" class="form-control"
+                                value="{{ yesterday_date }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="untilDate" class="form-label">Sampai Tanggal</label>
+                            <input type="date" id="untilDate" name="until_date" class="form-control"
+                                value="{{ today_date }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="keyword" class="form-label">Keyword</label>
+                            <input type="text" id="keyword" name="keyword" class="form-control" value="boikot produk">
+                        </div>
+                    </form>
+
+                    <!-- Tambahkan di form scraping di dalam card -->
+                    <div class="col-md-6 mt-3">
+                        <label class="form-label">Jenis Crawling</label>
+                        <div class="d-flex">
+                            <div class="form-check me-3">
+                                <input class="form-check-input" type="radio" name="scrape_type" id="scrapePredict"
+                                    value="predict" checked>
+                                <label class="form-check-label" for="scrapePredict">Untuk Prediksi</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="scrape_type" id="scrapeCsv"
+                                    value="csv">
+                                <label class="form-check-label" for="scrapeCsv">Untuk Simpan CSV</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col- mt-4">
+                        <label class="form-label">Keterangan :</label>
+                        
+                            <small class="form-text text-muted">Crawling dilakukan ketika klik button toggle. Jenis
+                                crawling ada 2 yaitu, <b>Crawling Untuk Prediksi</b> (berdasarkan
+                                hari kemarin hingga hari ini. Namun, bisa dilakukan kustomisasi tanggalnya. Keyword yang
+                                dimasukkan juga bisa di kustomisasi dengan syarat antara dataset train dan crawling
+                                untuk prediksi harus 1 keyword yang sama.) dan <b>Crawling Simpan CSV.</b> Pada crawling simpan csv, bisa dilakukan berulang kali dengan
+                                kustomisasi tanggal dan keyword </small>
+                       
+                    </div>
+
                     <div id="result" class="mt-3">
                         <div id="loadingAlert" class="alert alert-info" role="alert" style="display:none;">
                             Loading... Please wait.
@@ -27,7 +72,7 @@
                         </div>
                     </div>
 
-                    <div id="sentimentOverview" class="mt-3">
+                    <div id="sentimentOverview" class="mt-3 text-center">
                         <h4>Sentimen Mayoritas Hari Ini</h4>
                         <p id="majoritySentiment">Loading...</p>
                         <p id="accuracyDisplay"></p>
@@ -36,9 +81,8 @@
                         <p>Total Tweet yang di Crawling: <span id="totalTweetCount">Loading...</span></p>
                     </div>
 
-                    <div class="table-responsive mt-3" style="overflow-x: auto;">
-                        <table id="hasilcekTable" class="table table-striped table-bordered table-hover"
-                            style="display: none;">
+                    <div class="table-responsive mt-3">
+                        <table id="hasilcekTable" class="table table-striped table-bordered" style="display: none;">
                             <thead>
                                 <tr>
                                     <th>No</th>
@@ -46,6 +90,7 @@
                                     <th>Username</th>
                                     <th>Tweet</th>
                                     <th>Sentimen</th>
+                                    <th>Keyword</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -58,10 +103,11 @@
         </div>
     </div>
 </div>
-<div class="mt-3">
+
+<div class="container mt-5">
     <h2>Hasil Crawling</h2>
     <div class="table-responsive">
-        <table id="scrapTable" class="table table-striped table-bordered table-hover">
+        <table id="scrapTable" class="table table-striped table-bordered">
             <thead>
                 <tr>
                     <th>No</th>
@@ -69,6 +115,7 @@
                     <th>Username</th>
                     <th>Tweet</th>
                     <th>Sentimen</th>
+                    <th>Keyword</th>
                 </tr>
             </thead>
             <tbody>
@@ -84,6 +131,7 @@
                             {{ data.sentimen }}
                         </span>
                     </td>
+                    <td>{{ data.keyword }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -91,12 +139,10 @@
     </div>
 </div>
 
-
 <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/2.0.2/js/dataTables.js"></script>
 <script src="https://cdn.datatables.net/2.0.2/js/dataTables.bootstrap5.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
 
 <script>
@@ -126,8 +172,10 @@
         fetch('/fetch_data_from_database')
             .then(response => response.json())
             .then(data => {
-                // Kosongkan tabel saat pertama kali halaman dimuat
-                clearTable();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
                 updateSentimentOverview(data);
             })
             .catch(error => {
@@ -142,6 +190,11 @@
         const errorAlert = document.getElementById('errorAlert');
         const errorMessage = document.getElementById('errorMessage');
 
+        const sinceDate = document.getElementById('sinceDate').value;
+        const untilDate = document.getElementById('untilDate').value;
+        const keyword = document.getElementById('keyword').value;
+        const scrapeType = document.querySelector('input[name="scrape_type"]:checked').value;
+
         if (loadingAlert) loadingAlert.style.display = 'block';
         if (successAlert) successAlert.style.display = 'none';
         if (errorAlert) errorAlert.style.display = 'none';
@@ -151,7 +204,7 @@
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ scrape: true })
+            body: JSON.stringify({ scrape: true, since_date: sinceDate, until_date: untilDate, keyword: keyword, scrape_type: scrapeType })
         })
             .then(response => response.json())
             .then(data => {
@@ -161,11 +214,15 @@
                     if (errorMessage) errorMessage.innerText = data.error;
                 } else if (data.message) {
                     if (successAlert) successAlert.style.display = 'block';
-                    renderTable(data.data);
-                    updateSentimentOverview(data.data);
-                    document.getElementById('hasilcekTable').style.display = 'table';
-                    if (data.latestUpdate) {
-                        document.getElementById('latestUpdate').innerText = `Terakhir Diperbarui: ${data.latestUpdate}`;
+                    successAlert.innerHTML = `${data.message}`;
+
+                    if (scrapeType === 'predict' && data.data) {
+                        renderTable(data.data);
+                        updateSentimentOverview(data);
+                        document.getElementById('hasilcekTable').style.display = 'table';
+
+                    } else if (scrapeType === 'csv') {
+                        document.getElementById('successAlert').innerText = data.message;
                     }
                 }
             })
@@ -176,51 +233,58 @@
             });
     }
 
-
     function stopScraping() {
         scraping = false;
         document.getElementById('loadingAlert').style.display = 'none';
         document.getElementById('successAlert').style.display = 'none';
         document.getElementById('errorAlert').style.display = 'none';
-        clearTable();
+        clearHasilcekTable();
         fetchDataFromDatabase();
     }
 
     function updateSentimentOverview(data) {
-        if (data.length === 0) {
+        if (data.data && data.data.length === 0) {
             document.getElementById('majoritySentiment').innerText = 'Tidak ada data';
             document.getElementById('totalTweetCount').innerText = 0;
             return;
         }
 
-        const sentimentCounts = data.reduce((acc, row) => {
+        const sentimentCounts = data.data.reduce((acc, row) => {
             acc[row.sentimen] = (acc[row.sentimen] || 0) + 1;
             return acc;
         }, {});
-        const majoritySentiment = Object.keys(sentimentCounts).reduce((a, b) => sentimentCounts[a] > sentimentCounts[b] ? a : b);
 
-        document.getElementById('majoritySentiment').innerText = `Mayoritas sentimen hari ini adalah: ${majoritySentiment}`;
-        document.getElementById('totalTweetCount').innerText = data.length;
+        let majoritySentiment = 'Tidak ada data';
+        if (sentimentCounts.positif >= sentimentCounts.netral && sentimentCounts.positif >= sentimentCounts.negatif) {
+            majoritySentiment = 'Positif';
+        } else if (sentimentCounts.netral >= sentimentCounts.positif && sentimentCounts.netral >= sentimentCounts.negatif) {
+            majoritySentiment = 'Netral';
+        } else {
+            majoritySentiment = 'Negatif';
+        }
+
+        document.getElementById('majoritySentiment').innerText = `Mayoritas Sentimen: ${majoritySentiment}`;
+        document.getElementById('totalTweetCount').innerText = data.data.length;
     }
-
 
     function renderTable(data) {
         const tableBody = document.querySelector('#hasilcekTable tbody');
         tableBody.innerHTML = ''; // Clear previous data
 
-        data.forEach((row, index) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
+        if (data && data.length > 0) {
+            data.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
             <td>${index + 1}</td>
             <td>${row.tgl}</td>
             <td>${row.user}</td>
             <td>${row.tweet}</td>
-            <td><span class="badge ${row.sentimen === 'positif' ? 'bg-success' : row.sentimen === 'netral' ? 'bg-warning' : 'bg-danger'} text-white">${row.sentimen}</span></td>
+            <td><span class="badge ${row.sentimen === 'positif' ? 'bg-success' : row.sentimen === 'negatif' ? 'bg-danger' : 'bg-warning'}">${row.sentimen}</span></td>
+            <td>${row.keyword}</td> <!-- Tambahkan data keyword di sini -->
         `;
-            tableBody.appendChild(tr);
-        });
+                tableBody.appendChild(tr);
+            });
 
-        if (data.length > 0) {
             document.getElementById('hasilcekTable').style.display = 'table'; // Show the table if there is data
         } else {
             document.getElementById('hasilcekTable').style.display = 'none'; // Hide the table if there is no data
@@ -228,11 +292,10 @@
     }
 
 
-    function clearTable() {
+    function clearHasilcekTable() {
         const tableBody = document.querySelector('#hasilcekTable tbody');
-        tableBody.innerHTML = ''; // Clear the table content
+        tableBody.innerHTML = '';
         document.getElementById('hasilcekTable').style.display = 'none'; // Hide the table
     }
 </script>
-
 {% endblock %}
