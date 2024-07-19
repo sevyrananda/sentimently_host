@@ -50,7 +50,8 @@
                     <p class="text-white">
                         <strong>Kesimpulan:</strong>
                         {% if overall_majority_sentiment == 'positif' %}
-                        Berdasarkan analisis, masyarakat cenderung <b>mendukung</b> terhadap {% for keyword in keywords %}
+                        Berdasarkan analisis, masyarakat cenderung <b>mendukung</b> terhadap {% for keyword in keywords
+                        %}
                         <u>{{ keyword }}</u>
                         {% endfor %}. Ini menunjukkan adanya dukungan atau setuju terhadap topik tersebut.
                         {% elif overall_majority_sentiment == 'negatif' %}
@@ -73,7 +74,7 @@
                     Analisis Sentimen?</button>
             </div>
             <div class="col-lg-5 text-center text-lg-start">
-                <img src="/static/hero1.png" class="img-fluid rounded mb-4 mb-lg-0" width="80%" alt="Hero Image">
+                <img src="/static/hero1.png" class="img-fluid rounded mb-4 mb-lg-0" width="65%" alt="Hero Image">
             </div>
         </div>
         <!-- Modal -->
@@ -175,15 +176,18 @@
                                                 <p>
                                                     {% if sentiment['positif']['count'] > sentiment['negatif']['count']
                                                     and sentiment['positif']['count'] > sentiment['netral']['count'] %}
-                                                    Berdasarkan hasil analisis, Masyarakat sebagian besar : <b>Mendukung</b>
+                                                    Berdasarkan hasil analisis, Masyarakat sebagian besar :
+                                                    <b>Mendukung</b>
                                                     {% elif sentiment['negatif']['count'] >
                                                     sentiment['positif']['count'] and sentiment['negatif']['count'] >
                                                     sentiment['netral']['count'] %}
-                                                    Berdasarkan hasil analisis, Masyarakat sebagian besar : <b>Menolak</b>
+                                                    Berdasarkan hasil analisis, Masyarakat sebagian besar :
+                                                    <b>Menolak</b>
                                                     {% elif sentiment['netral']['count'] >
                                                     sentiment['positif']['count'] and sentiment['netral']['count'] >
                                                     sentiment['negatif']['count'] %}
-                                                    Berdasarkan hasil analisis, Masyarakat sebagian besar : <b>Netral</b>
+                                                    Berdasarkan hasil analisis, Masyarakat sebagian besar :
+                                                    <b>Netral</b>
                                                     {% else %}
                                                     Mayoritas Sentimen: <b>Tidak Ada Sentimen Mayoritas</b>
                                                     {% endif %}
@@ -217,7 +221,8 @@
             <div class="card mt-3 shadow">
                 <div class="card-header bg-dark"></div>
                 <div class="card-body">
-                    <p class="mt-2 text-center">Word Cloud merupakan visualisasi sentimen analisis berdasarkan kata-kata yang paling sering muncul dalam tweet yang
+                    <p class="mt-2 text-center">Word Cloud merupakan visualisasi sentimen analisis berdasarkan kata-kata
+                        yang paling sering muncul dalam tweet yang
                         dianalisis. Ukuran kata mencerminkan frekuensi kemunculannya.</p>
                     <img id="wordCloudImage" src="{{ url_for('word_cloud_image') }}" alt="Word Cloud"
                         class="img-fluid mt-4">
@@ -280,11 +285,12 @@
             {% endif %}
             {% if sentiment %}
             <div class="alert {% if sentiment == 'Positive' %}alert-success{% elif sentiment == 'Negative' %}alert-danger{% elif sentiment == 'Neutral' %}alert-warning{% endif %} mt-4 shadow mx-auto"
-                role="alert" style="width: 50%;">
+                role="alert" style="width: 100%;">
                 <div class="d-flex justify-content-between align-items-center">
                     <h4
                         class="bg {% if sentiment == 'Positive' %}bg-success{% elif sentiment == 'Negative' %}bg-danger{% elif sentiment == 'Neutral' %}bg-warning{% endif %} text-dark p-2 rounded">
-                        Predicted Sentiment: {{ sentiment }}</h4>
+                        Predicted Sentiment: {{ sentiment }}
+                    </h4>
                     <div>
                         <i class="fas fa-info-circle fa-lg me-2"></i>
                     </div>
@@ -295,30 +301,31 @@
                     <p><strong>Clean Text:</strong> {{ clean_text }}</p>
                     {% if scores %}
                     <div class="row">
-                        <div class="col">
+                        <div class="col-12">
                             <p><strong>Sentiment Scores:</strong></p>
-                            <div class="d-flex justify-content-between">
-                                <div class="text-start">
+                            <div class="d-flex flex-column flex-md-row justify-content-between">
+                                <div class="text-start mb-2 mb-md-0" style="flex: 1; margin-right: 5px;">
                                     <p>Negatif: {{ scores['Negative'] }}</p>
-                                    <div class="progress">
-                                        <div class="progress-bar bg-danger text" role="progressbar"
+                                    <div class="progress" style="margin-bottom: 5px;">
+                                        <div class="progress-bar bg-danger" role="progressbar"
                                             style="width: {{ scores['Negative'] * 100 }}%;"
                                             aria-valuenow="{{ scores['Negative'] * 100 }}" aria-valuemin="0"
                                             aria-valuemax="100"></div>
                                     </div>
                                 </div>
-                                <div class="text-center">
+                                <div class="text-center mb-2 mb-md-0"
+                                    style="flex: 1; margin-left: 5px; margin-right: 5px;">
                                     <p>Netral: {{ scores['Neutral'] }}</p>
-                                    <div class="progress">
+                                    <div class="progress" style="margin-bottom: 5px;">
                                         <div class="progress-bar bg-warning" role="progressbar"
                                             style="width: {{ scores['Neutral'] * 100 }}%;"
                                             aria-valuenow="{{ scores['Neutral'] * 100 }}" aria-valuemin="0"
                                             aria-valuemax="100"></div>
                                     </div>
                                 </div>
-                                <div class="text-end">
+                                <div class="text-end" style="flex: 1; margin-left: 5px;">
                                     <p>Positif: {{ scores['Positive'] }}</p>
-                                    <div class="progress">
+                                    <div class="progress" style="margin-bottom: 5px;">
                                         <div class="progress-bar bg-success" role="progressbar"
                                             style="width: {{ scores['Positive'] * 100 }}%;"
                                             aria-valuenow="{{ scores['Positive'] * 100 }}" aria-valuemin="0"

@@ -1,18 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file 
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user
 import mysql.connector
 import os, re, csv, string
 import pandas as pd
-import numpy as np
 import joblib
 import pickle
 import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
 import time
-from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
-from flask import session
+from sklearn.metrics import confusion_matrix, accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
@@ -21,20 +16,14 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Embedding, LSTM, SpatialDropout1D, Bidirectional
-from tensorflow.keras.callbacks import EarlyStopping
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory, StopWordRemover, ArrayDictionary
-from sklearn.metrics import accuracy_score, classification_report
-from textblob import TextBlob
-from googletrans import Translator
 from datetime import datetime, timedelta
 import shutil
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from transformers import BertTokenizer, BertForSequenceClassification
 from transformers import pipeline
-import torch
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import io
@@ -89,7 +78,7 @@ def login():
         user = authenticate(username, password)
         if user:
             login_user(user)
-            return redirect(url_for('scraping'))
+            return redirect(url_for('dataset'))
         else:
             error = 'Invalid username or password. Please try again.'
             return render_template('login.html', error=error)
@@ -336,30 +325,17 @@ def dashboard():
                                ]
                            })
 
-
-
-
-
-
-
-
-@app.route('/scraping', methods=['GET'])
-@login_required
-def scraping():
+@app.route('/delete_all_datasets', methods=['DELETE'])
+def delete_all_datasets():
     cur = mysql.cursor(dictionary=True)
-    cur.execute("SELECT * FROM users")
-    users = cur.fetchall()
-
-    cur.execute("SELECT * FROM hasil_crawl")
-    processed_data = cur.fetchall()
+    cur.execute("DELETE FROM dataset")
+    mysql.commit()
 
     cur.close()
+    return jsonify({'success': True})
+    
 
-    today = datetime.now()
-    yesterday = today - timedelta(days=1)
-    yesterday_date = yesterday.strftime('%Y-%m-%d')
-    today_date = today.strftime('%Y-%m-%d')
-    return render_template('scraping.html', users=users, processed_data=processed_data, yesterday_date=yesterday_date, today_date=today_date)
+
 
 @app.route('/save_data', methods=['POST'])
 @login_required
@@ -439,43 +415,49 @@ def uploadFiles():
         return response
     return redirect(url_for("dataset"))
 
-# Load pre-trained BERT model for sentiment analysis
-model_name = "ayameRushia/bert-base-indonesian-1.5G-sentiment-analysis-smsa"
-tokenizer = BertTokenizer.from_pretrained(model_name)
-model = BertForSequenceClassification.from_pretrained(model_name)
-
-# Create sentiment analysis pipeline
-sentiment_analyzer = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer, framework='pt')
-
+# LOAD MODEL DARI HUGGING FACE - BERT
 def parseCSV(filePath):
-    col_names = ['full_text']
-    csvData = pd.read_csv(filePath, usecols=col_names)  # Only read 'full_text' column
-    for i, row in csvData.iterrows():
-        full_text = row['full_text']
-        
-        # Perform sentiment analysis
-        sentiment_result = sentiment_analyzer(full_text)[0]
-        sentiment = sentiment_result['label']
-        
-        # Print sentiment for debugging
-        print(f"Original sentiment label: {sentiment}")
-        
-        # Map sentiment labels to desired format
-        if sentiment == 'Negative':
-            sentiment = 'negatif'
-        elif sentiment == 'Neutral':
-            sentiment = 'netral'
-        elif sentiment == 'Positive':
-            sentiment = 'positif'
-        
-        # Insert into database
-        sql = "INSERT INTO dataset (full_text, sentiment) VALUES (%s, %s)"
-        value = (full_text, sentiment)
-        cur = mysql.cursor()
-        cur.execute(sql, value)
-        mysql.commit()
+    # Check if the CSV contains a 'sentiment' column
+    csvData = pd.read_csv(filePath)
+    if 'sentiment' in csvData.columns:
+        # CSV already contains sentiment labels
+        for i, row in csvData.iterrows():
+            full_text = row['full_text']
+            sentiment = row['sentiment']
+            # Insert into database
+            sql = "INSERT INTO dataset (full_text, sentiment) VALUES (%s, %s)"
+            value = (full_text, sentiment)
+            cur = mysql.cursor()
+            cur.execute(sql, value)
+            mysql.commit()
+    else:
+        # CSV does not contain sentiment labels, perform sentiment analysis
+        for i, row in csvData.iterrows():
+            full_text = row['full_text']
+            
+            # Perform sentiment analysis
+            sentiment_result = sentiment_analyzer(full_text)[0]
+            sentiment = sentiment_result['label']
+            
+            # Print sentiment for debugging
+            print(f"Original sentiment label: {sentiment}")
+            
+            # Map sentiment labels to desired format
+            if sentiment == 'Negative':
+                sentiment = 'negatif'
+            elif sentiment == 'Neutral':
+                sentiment = 'netral'
+            elif sentiment == 'Positive':
+                sentiment = 'positif'
+            
+            # Insert into database
+            sql = "INSERT INTO dataset (full_text, sentiment) VALUES (%s, %s)"
+            value = (full_text, sentiment)
+            cur = mysql.cursor()
+            cur.execute(sql, value)
+            mysql.commit()
 
-
+# PEMODELAN MENGGUNAKAN ALGORITMA NAIVE BAYES DAN LSTM
 @app.route('/train', methods=['POST'])
 def train():
     try:
@@ -667,29 +649,6 @@ def edit_user(user_id):
         flash('Data User Berhasil Diupdate', 'success')
         return redirect('/user')
     
-# CRUD SCRAPE
-@app.route('/delete_text/<int:data_id>')
-def delete_text(data_id):
-    cur = mysql.cursor()
-    cur.execute("DELETE FROM hasil_crawl WHERE id = %s", (data_id,))
-    mysql.commit()
-    cur.close()
-    flash('Data Scraping Berhasil Dihapus', 'success')
-    return redirect('/scraping')
-
-@app.route('/edit_text/<int:data_id>', methods=['POST'])
-def edit_text(data_id):
-    if request.method == 'POST':
-        text = request.form['text']
-        sentiment = request.form['sentiment']
-        cur = mysql.cursor()
-        cur.execute("UPDATE hasil_crawl SET text = %s, sentiment = %s WHERE id = %s", (text, sentiment, data_id))
-        mysql.commit()
-        cur.close()
-        flash('Data Scraping Berhasil Diupdate', 'success')
-        return redirect('/scraping')
-    
-    
 # CRUD DATASET
 @app.route('/add_dataset', methods=['POST'])
 def add_dataset():
@@ -715,7 +674,6 @@ def edit_dataset(dataset_id):
         flash('Dataset Berhasil Diupdate', 'success')
         return redirect('/dataset')
     
-    
 @app.route('/delete_dataset/<int:dataset_id>', methods=['POST'])
 def delete_dataset(dataset_id):
     cur = mysql.cursor()
@@ -732,8 +690,6 @@ def delete_dataset(dataset_id):
     finally:
         cur.close()
     return redirect('/dataset')
-
-
 
 # Fungsi Preprocess
 def preprocess(clean_text):
@@ -839,11 +795,11 @@ def predict_sentiment_best_model(input_sentence, model_type):
 
 
 
-# Route for analyzing sentiment
+# FITUR CEK ANALISIS SENTIMEN
 @app.route('/analyze', methods=['POST'])
 def analyze():
     input_sentence = request.form['text']
-    cleaned_input = preprocess(input_sentence)  # Clean the input text (assuming preprocess function is defined elsewhere)
+    cleaned_input = preprocess(input_sentence)  
     
     if model_type == "naive_bayes":
         processed_input = preprocess_input_sentence_nb(cleaned_input)
@@ -851,7 +807,60 @@ def analyze():
     elif model_type == "lstm":
         predicted_sentiment, sentiment_scores = predict_sentiment_best_model(cleaned_input, model_type)
     
-    return render_template('guest.html', input_text=input_sentence, sentiment=predicted_sentiment, scores=sentiment_scores, clean_text=cleaned_input)
+    # Ambil data produk dan keyword untuk ditampilkan di halaman yang sama
+    products_to_analyze = [
+        {"name": "kfc", "image": "/static/kfc.png"},
+        {"name": "mcd", "image": "/static/mcd.png"},
+        {"name": "starbucks", "image": "/static/sbux.png"},
+        {"name": "burger king", "image": "/static/bk.png"},
+        {"name": "aqua", "image": "/static/aqua.png"},
+        {"name": "nestle", "image": "/static/nestle.png"},
+        {"name": "pizza hut", "image": "/static/ph.png"},
+        {"name": "oreo", "image": "/static/oreo.png"},
+        {"name": "unilever", "image": "/static/unv.png"},
+    ]
+
+    negative_products, positive_products, neutral_products, keywords = get_sentiment_data(products_to_analyze)
+
+    products_sentiment = {}
+    for product in products_to_analyze:
+        product_name = product['name']
+        positive_count = positive_products.get(product_name, 0)
+        negative_count = negative_products.get(product_name, 0)
+        neutral_count = neutral_products.get(product_name, 0)
+        
+        product_sentiment = {
+            "positif": {
+                "count": positive_count
+            },
+            "negatif": {
+                "count": negative_count
+            },
+            "netral": {
+                "count": neutral_count
+            }
+        }
+        
+        products_sentiment[product_name] = product_sentiment
+
+    sorted_products_sentiment = dict(sorted(products_sentiment.items(), 
+                                            key=lambda item: (item[1]['positif']['count'], item[1]['netral']['count'], item[1]['negatif']['count']), 
+                                            reverse=True))
+
+    overall_majority_sentiment = get_overall_sentiment()
+
+    # Log overall majority sentiment
+    print(f"Overall majority sentiment: {overall_majority_sentiment}")
+
+    return render_template('guest.html', 
+                           input_text=input_sentence,
+                           sentiment=predicted_sentiment,
+                           scores=sentiment_scores,
+                           clean_text=cleaned_input,
+                           products_sentiment=sorted_products_sentiment,
+                           overall_majority_sentiment=overall_majority_sentiment,
+                           keywords=keywords,
+                           wordcloud_image=generate_word_cloud())
 
 # Function to load the best model based on evaluation
 def load_best_model():
@@ -930,7 +939,23 @@ def evaluate_lstm_model():
         print(f"Error during LSTM model evaluation: {e}")
         return None, 0
 
+@app.route('/scraping', methods=['GET'])
+@login_required
+def scraping():
+    cur = mysql.cursor(dictionary=True)
+    cur.execute("SELECT * FROM users")
+    users = cur.fetchall()
 
+    cur.execute("SELECT * FROM hasil_crawl")
+    processed_data = cur.fetchall()
+
+    cur.close()
+
+    today = datetime.now()
+    yesterday = today - timedelta(days=1)
+    yesterday_date = yesterday.strftime('%Y-%m-%d')
+    today_date = today.strftime('%Y-%m-%d')
+    return render_template('scraping.html', users=users, processed_data=processed_data, yesterday_date=yesterday_date, today_date=today_date)
     
 scraped_files = []
 
@@ -938,9 +963,6 @@ today = datetime.now()
 yesterday = today - timedelta(days=1)
 since_date = yesterday.strftime('%Y-%m-%d')
 until_date = today.strftime('%Y-%m-%d')
-
-# since_date = '2024-07-01'
-# until_date = '2024-07-03'
 
 def is_scraped_today(existing_data, target_date):
     for row in existing_data:
@@ -971,7 +993,7 @@ def do_scrape():
                 return jsonify(message="Crawling sudah dilakukan. Data yang sudah di-crawl:", data=existing_data)
     
         auth_token = "0e12b16141a80c4510f95de2dcd5ef5b365b3fb3"
-        limit = 100
+        limit = 10
         search_keyword = f'{keyword} lang:id until:{until_date} since:{since_date}'
 
         data = 'data_boikot.csv'
@@ -1234,7 +1256,7 @@ def fetch_data_from_database():
 
         return jsonify(response)
     except Exception as e:
-        print(f"Error fetching data from database: {e}")
+        # print(f"Error fetching data from database: {e}")
         return jsonify(error=str(e)), 500
 
 

@@ -93,7 +93,7 @@
             <button type="submit" class="btn btn-primary">Simpan Dataset</button>
         </div>
     </form>
-    
+
 
 
     <div class="d-flex justify-content-between align-items-center">
@@ -213,115 +213,161 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="d-flex justify-content-between align-items-center">
+            <h2 class="mt-2 mb-3"></h2>
+            <div>
+                <button type="button" class="btn btn-danger mt-5" onclick="deleteAllDatasets()"><i class="bi bi-trash-fill">Delete All
+                        Dataset</i></button>
+            </div>
+        </div>
     </div>
+</div>
 
-    <!-- JavaScript libraries -->
-    <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.datatables.net/2.0.2/js/dataTables.js"></script>
-    <script src="https://cdn.datatables.net/2.0.2/js/dataTables.bootstrap5.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+<!-- JavaScript libraries -->
+<script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/2.0.2/js/dataTables.js"></script>
+<script src="https://cdn.datatables.net/2.0.2/js/dataTables.bootstrap5.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
 
-    <script>
-        new DataTable('#datasetTable');
+<script>
+    new DataTable('#datasetTable');
 
-        function trainModel() {
-            document.getElementById('loading').style.display = 'block';
+    function trainModel() {
+        document.getElementById('loading').style.display = 'block';
 
-            fetch('/train', {
-                method: 'POST'
-            }).then(response => response.json())
-                .then(data => {
-                    document.getElementById('loading').style.display = 'none';
+        fetch('/train', {
+            method: 'POST'
+        }).then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
 
-                    let alertClass = 'alert-' + data.status;
-                    let alertMessage = `
+                let alertClass = 'alert-' + data.status;
+                let alertMessage = `
                     <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
                         ${data.message}
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 `;
-                    document.querySelector('.container').insertAdjacentHTML('afterbegin', alertMessage);
-                }).catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('loading').style.display = 'none';
-                    let alertMessage = `
+                document.querySelector('.container').insertAdjacentHTML('afterbegin', alertMessage);
+            }).catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loading').style.display = 'none';
+                let alertMessage = `
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
                         Error during training process.
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 `;
-                    document.querySelector('.container').insertAdjacentHTML('afterbegin', alertMessage);
-                });
-        }
-
-        function openEditModal(datasetId, full_text, sentiment) {
-            $('#editDatasetId').val(datasetId);
-            $('#editFullText').val(full_text);
-            $('#editSentiment').val(sentiment);
-            $('#editDatasetForm').attr('action', '/edit_dataset/' + datasetId);
-            $('#editDatasetModal').modal('show');
-        }
-
-        function confirmDelete(datasetId) {
-            Swal.fire({
-                title: 'Are you sure?',
-                text: 'You will not be able to recover this dataset!',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, delete it',
-                cancelButtonText: 'No, keep it',
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // Buat form dinamis untuk penghapusan
-                    const form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = '/delete_dataset/' + datasetId;
-                    document.body.appendChild(form);
-                    form.submit();
-                }
+                document.querySelector('.container').insertAdjacentHTML('afterbegin', alertMessage);
             });
-        }
-    </script>
+    }
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        const backgroundColors = [
-            'rgba(75, 192, 192, 1)', // Merah dengan alpha 1, tidak transparan
-            'rgba(255, 206, 86, 1)',  // Hijau dengan alpha 1, tidak transparan
-            'rgba(255, 99, 132, 1)'   // Kuning dengan alpha 1, tidak transparan
-        ];
+    function openEditModal(datasetId, full_text, sentiment) {
+        $('#editDatasetId').val(datasetId);
+        $('#editFullText').val(full_text);
+        $('#editSentiment').val(sentiment);
+        $('#editDatasetForm').attr('action', '/edit_dataset/' + datasetId);
+        $('#editDatasetModal').modal('show');
+    }
 
-        const chartData = JSON.parse('{{ chart_data | tojson | safe }}');
+    function confirmDelete(datasetId) {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'You will not be able to recover this dataset!',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, delete it',
+            cancelButtonText: 'No, keep it',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Buat form dinamis untuk penghapusan
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/delete_dataset/' + datasetId;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
 
-        const ctx = document.getElementById('myChart');
-
-        new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Mendukung ({{ total_positive }})', 'Netral ({{ total_neutral }})', 'Menolak ({{ total_negative }})'],
-                datasets: [{
-                    label: 'of sentiment',
-                    data: chartData.data,
-                    borderWidth: 1,
-                    backgroundColor: backgroundColors
-                }]
-            },
-            options: {
-                responsive: true, // Mengaktifkan responsif
-                maintainAspectRatio: false, // Mengabaikan aspek rasio
-                plugins: {
-                    legend: {
-                        labels: {
-                            color: 'black' // Mengatur warna teks menjadi putih
+    function deleteAllDatasets() {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "You won't be able to revert this!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, delete it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch('/delete_all_datasets', {
+                    method: 'DELETE',
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire(
+                                'Deleted!',
+                                'All datasets have been deleted.',
+                                'success'
+                            ).then(() => {
+                                // Reload the page after the alert is closed
+                                window.location.reload();
+                            });
+                        } else {
+                            Swal.fire(
+                                'Error!',
+                                'Failed to delete datasets.',
+                                'error'
+                            );
                         }
+                    });
+            }
+        });
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const backgroundColors = [
+        'rgba(75, 192, 192, 1)', // Merah dengan alpha 1, tidak transparan
+        'rgba(255, 206, 86, 1)',  // Hijau dengan alpha 1, tidak transparan
+        'rgba(255, 99, 132, 1)'   // Kuning dengan alpha 1, tidak transparan
+    ];
+
+    const chartData = JSON.parse('{{ chart_data | tojson | safe }}');
+
+    const ctx = document.getElementById('myChart');
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Mendukung ({{ total_positive }})', 'Netral ({{ total_neutral }})', 'Menolak ({{ total_negative }})'],
+            datasets: [{
+                label: 'of sentiment',
+                data: chartData.data,
+                borderWidth: 1,
+                backgroundColor: backgroundColors
+            }]
+        },
+        options: {
+            responsive: true, // Mengaktifkan responsif
+            maintainAspectRatio: false, // Mengabaikan aspek rasio
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'black' // Mengatur warna teks menjadi putih
                     }
                 }
             }
-        });
-    </script>
+        }
+    });
+</script>
 
 
 
-    {% endblock %}
+{% endblock %}
