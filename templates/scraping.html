@@ -10,7 +10,7 @@
                     <div class="form-check form-switch form-switch-lg">
                         <input class="form-check-input" type="checkbox" id="scrapeToggle"
                             style="transform: scale(1.5);">
-                        <label class="form-check-label text-white ms-2" for="scrapeToggle">Aktifkan Scraping</label>
+                        <label class="form-check-label text-white ms-2" for="scrapeToggle">Aktifkan Crawling</label>
                     </div>
                 </div>
                 <div class="card-body">
@@ -156,10 +156,10 @@
 
         scrapeToggle.addEventListener('change', function () {
             if (this.checked) {
-                scrapeLabel.textContent = 'Matikan Scraping';
+                scrapeLabel.textContent = 'Matikan Crawling';
                 startScraping();
             } else {
-                scrapeLabel.textContent = 'Aktifkan Scraping';
+                scrapeLabel.textContent = 'Aktifkan Crawling';
                 stopScraping();
             }
         });
